@@ -1,0 +1,17 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://content/core/diagnostics/game_debug_panel.gd" id="1_panel"]
+
+[node name="GameDebugPanel" type="PanelContainer"]
+script = ExtResource("1_panel")
+offset_right = 640.0
+offset_bottom = 480.0
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 2
+
+[node name="TextView" type="RichTextLabel" parent="MarginContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+fit_content = true
+scroll_active = true

@@ -1,0 +1,27 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://content/core/object/kernel/game_object_kernel.gd" id="1_kernel"]
+[ext_resource type="Script" path="res://content/core/object/identity/game_object_identity.gd" id="2_identity"]
+[ext_resource type="Script" path="res://content/core/tags/game_tag_container.gd" id="3_tags"]
+[ext_resource type="Script" path="res://content/core/testing/features/game_test_counter_feature.gd" id="4_counter"]
+[ext_resource type="Script" path="res://content/core/testing/features/game_test_threshold_feature.gd" id="5_threshold"]
+
+[node name="LogicalObject" type="Node"]
+
+[node name="GameObjectKernel" type="Node" parent="."]
+script = ExtResource("1_kernel")
+
+[node name="GameObjectIdentity" type="Node" parent="GameObjectKernel"]
+script = ExtResource("2_identity")
+stable_id = &"demo.logical_object"
+definition_id = &"scene.test_logical_object"
+
+[node name="GameTags" type="Node" parent="GameObjectKernel"]
+script = ExtResource("3_tags")
+
+[node name="GameTestCounterFeature" type="Node" parent="GameObjectKernel"]
+script = ExtResource("4_counter")
+
+[node name="GameTestThresholdFeature" type="Node" parent="GameObjectKernel"]
+script = ExtResource("5_threshold")
+threshold = 3

@@ -1,0 +1,47 @@
+[gd_scene format=3 uid="uid://dirrkaoqlw0gg"]
+
+[ext_resource type="Script" uid="uid://drktecnygf1s6" path="res://content/core/object/kernel/game_object_kernel.gd" id="1_kernel"]
+[ext_resource type="Script" uid="uid://dc07aejmptsxw" path="res://content/core/object/identity/game_object_identity.gd" id="2_identity"]
+[ext_resource type="Script" uid="uid://bg0cgb3piiol5" path="res://content/core/tags/game_tag_container.gd" id="3_tags"]
+[ext_resource type="Script" uid="uid://cj1dn4vkggo6v" path="res://content/core/capabilities/contracts/game_capability_spec.gd" id="3_u6wyj"]
+[ext_resource type="Script" uid="uid://clb1pwixqp1kl" path="res://content/core/testing/features/game_test_counter_feature.gd" id="4_counter"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_test"]
+
+[sub_resource type="Resource" id="Resource_3gxn7"]
+script = ExtResource("3_u6wyj")
+capability_id = &"object.identity"
+
+[sub_resource type="Resource" id="Resource_bha8a"]
+script = ExtResource("3_u6wyj")
+capability_id = &"tags.query"
+
+[sub_resource type="Resource" id="Resource_3mtu1"]
+script = ExtResource("3_u6wyj")
+capability_id = &"tags.modify"
+
+[node name="FoundationRigidProp" type="RigidBody3D" unique_id=1618650257]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1735111305]
+shape = SubResource("BoxShape3D_test")
+
+[node name="GameObjectKernel" type="Node" parent="." unique_id=174916746]
+script = ExtResource("1_kernel")
+
+[node name="GameObjectIdentity" type="Node" parent="GameObjectKernel" unique_id=1348453634]
+script = ExtResource("2_identity")
+stable_id = &"demo.foundation_rigid_prop"
+definition_id = &"scene.prop_test_foundation_body"
+category_tags = Array[StringName]([&"object.prop.barrel"])
+feature_id = &"object.identity"
+provided_capabilities = Array[ExtResource("3_u6wyj")]([SubResource("Resource_3gxn7")])
+
+[node name="GameTags" type="Node" parent="GameObjectKernel" unique_id=2031943895]
+script = ExtResource("3_tags")
+permanent_tags = Array[StringName]([&"object.prop.barrel", &"trait.flammable"])
+feature_id = &"object.tags"
+provided_capabilities = Array[ExtResource("3_u6wyj")]([SubResource("Resource_bha8a"), SubResource("Resource_3mtu1")])
+
+[node name="GameTestCounterFeature" type="Node" parent="GameObjectKernel" unique_id=173887390]
+script = ExtResource("4_counter")
+feature_id = &"test.counter"
