@@ -17,6 +17,10 @@ const EFFECTS_QUERY: StringName = &"effects.query"
 const EFFECTS_DISPEL: StringName = &"effects.dispel"
 const EFFECTS_SCHEDULER_HOST: StringName = &"effects.scheduler_host"
 const ABILITIES_OWNER: StringName = &"abilities.owner"
+const ABILITIES_QUERY: StringName = &"abilities.query"
+const ABILITIES_ACTIVATE: StringName = &"abilities.activate"
+const ABILITIES_GRANT: StringName = &"abilities.grant"
+const ABILITIES_CANCEL: StringName = &"abilities.cancel"
 const CONTROL_ENDPOINT: StringName = &"control.endpoint"
 const MOVEMENT_MOTOR: StringName = &"movement.motor"
 const DAMAGE_RECEIVER: StringName = &"damage.receiver"
@@ -43,6 +47,10 @@ const ALL: Array[StringName] = [
 	EFFECTS_DISPEL,
 	EFFECTS_SCHEDULER_HOST,
 	ABILITIES_OWNER,
+	ABILITIES_QUERY,
+	ABILITIES_ACTIVATE,
+	ABILITIES_GRANT,
+	ABILITIES_CANCEL,
 	CONTROL_ENDPOINT,
 	MOVEMENT_MOTOR,
 	DAMAGE_RECEIVER,
