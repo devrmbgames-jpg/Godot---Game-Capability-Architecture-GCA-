@@ -214,23 +214,23 @@ func _build_initialization_order() -> GameCommandResult:
 					(outgoing[provider] as Array).append(dependent)
 					indegree[dependent] = int(indegree[dependent]) + 1
 
-	var ready: Array[GameFeature] = []
+	var ready_features: Array[GameFeature] = []
 	for feature: GameFeature in _features:
 		if int(indegree[feature]) == 0:
-			ready.append(feature)
-	ready.sort_custom(_feature_sort_before)
+			ready_features.append(feature)
+	ready_features.sort_custom(_feature_sort_before)
 
 	_initialization_order.clear()
-	while not ready.is_empty():
-		var current: GameFeature = ready.pop_front()
+	while not ready_features.is_empty():
+		var current: GameFeature = ready_features.pop_front()
 		_initialization_order.append(current)
 		var next_features: Array = outgoing[current]
 		next_features.sort_custom(_feature_sort_before)
 		for dependent: GameFeature in next_features:
 			indegree[dependent] = int(indegree[dependent]) - 1
 			if int(indegree[dependent]) == 0:
-				ready.append(dependent)
-				ready.sort_custom(_feature_sort_before)
+				ready_features.append(dependent)
+				ready_features.sort_custom(_feature_sort_before)
 
 	if _initialization_order.size() != _features.size():
 		return GameCommandResult.configuration_error(&"dependency_cycle", "Feature dependency cycle detected.")
@@ -627,8 +627,8 @@ func process_execution_queue(max_operations: int = -1) -> int:
 func create_root_execution_context(cause_type: StringName, debug_label: String = "") -> GameExecutionContext:
 	_operation_id_counter += 1
 	var handle: GameObjectHandle = get_object_handle()
-	var seed: int = abs(hash("%s:%s" % [handle.get_runtime_instance_id() if handle != null else 0, _operation_id_counter]))
-	return GameExecutionContext.create_root(_operation_id_counter, handle, cause_type, seed, 0, debug_label)
+	var new_seed: int = abs(hash("%s:%s" % [handle.get_runtime_instance_id() if handle != null else 0, _operation_id_counter]))
+	return GameExecutionContext.create_root(_operation_id_counter, handle, cause_type, new_seed, 0, debug_label)
 
 func create_child_execution_context(parent: GameExecutionContext, cause_type: StringName, debug_label: String = "") -> GameExecutionContext:
 	_operation_id_counter += 1
