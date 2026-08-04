@@ -5,7 +5,6 @@ class_name GameCapabilityIds
 const OBJECT_IDENTITY: StringName = &"object.identity"
 const TAGS_QUERY: StringName = &"tags.query"
 const TAGS_MODIFY: StringName = &"tags.modify"
-
 const ATTRIBUTES_PROVIDER: StringName = &"attributes.provider"
 const ATTRIBUTES_QUERY: StringName = &"attributes.query"
 const ATTRIBUTES_MODIFY: StringName = &"attributes.modify"
@@ -21,7 +20,6 @@ const ABILITIES_QUERY: StringName = &"abilities.query"
 const ABILITIES_ACTIVATE: StringName = &"abilities.activate"
 const ABILITIES_GRANT: StringName = &"abilities.grant"
 const ABILITIES_CANCEL: StringName = &"abilities.cancel"
-
 const CONTROL_ARBITER: StringName = &"control.arbiter"
 const CONTROL_ENDPOINT: StringName = &"control.endpoint"
 const CONTROL_INTENT_RECEIVER: StringName = &"control.intent_receiver"
@@ -33,29 +31,16 @@ const INTERACTION_TARGET: StringName = &"interaction.target"
 const INTERACTION_QUERY: StringName = &"interaction.query"
 const INTERACTION_RESERVABLE: StringName = &"interaction.reservable"
 const PRESENTATION_CUE_RECEIVER: StringName = &"presentation.cue_receiver"
-
+const OBJECT_RESOLVER: StringName = &"world.object_resolver"
+const SPAWN_SERVICE: StringName = &"world.spawn_service"
+const TARGETING_SERVICE: StringName = &"world.targeting_service"
+const TIME_SERVICE: StringName = &"world.time_service"
+const PERSISTENCE_COORDINATOR: StringName = &"world.persistence_coordinator"
 const DAMAGE_RECEIVER: StringName = &"damage.receiver"
 const DEATH_POLICY: StringName = &"death.policy"
 const INVENTORY_OWNER: StringName = &"inventory.owner"
-
 const TEST_COUNTER: StringName = &"test.counter"
 const TEST_CHAIN: StringName = &"test.chain"
 const TEST_MULTI: StringName = &"test.multi"
-
-const ALL: Array[StringName] = [
-	OBJECT_IDENTITY, TAGS_QUERY, TAGS_MODIFY,
-	ATTRIBUTES_PROVIDER, ATTRIBUTES_QUERY, ATTRIBUTES_MODIFY,
-	METERS_PROVIDER, METERS_QUERY, METERS_MODIFY,
-	EFFECTS_RECEIVER, EFFECTS_QUERY, EFFECTS_DISPEL, EFFECTS_SCHEDULER_HOST,
-	ABILITIES_OWNER, ABILITIES_QUERY, ABILITIES_ACTIVATE, ABILITIES_GRANT, ABILITIES_CANCEL,
-	CONTROL_ARBITER, CONTROL_ENDPOINT, CONTROL_INTENT_RECEIVER, CONTROL_QUERY,
-	MOVEMENT_MOTOR, MOVEMENT_QUERY,
-	INTERACTION_SOURCE, INTERACTION_TARGET, INTERACTION_QUERY, INTERACTION_RESERVABLE,
-	PRESENTATION_CUE_RECEIVER,
-	DAMAGE_RECEIVER, DEATH_POLICY, INVENTORY_OWNER,
-	TEST_COUNTER, TEST_CHAIN, TEST_MULTI,
-]
-
-# ====== PUBLIC ========
-static func is_known(capability_id: StringName) -> bool:
-	return capability_id in ALL
+const ALL: Array[StringName] = [OBJECT_IDENTITY, TAGS_QUERY, TAGS_MODIFY, ATTRIBUTES_PROVIDER, ATTRIBUTES_QUERY, ATTRIBUTES_MODIFY, METERS_PROVIDER, METERS_QUERY, METERS_MODIFY, EFFECTS_RECEIVER, EFFECTS_QUERY, EFFECTS_DISPEL, EFFECTS_SCHEDULER_HOST, ABILITIES_OWNER, ABILITIES_QUERY, ABILITIES_ACTIVATE, ABILITIES_GRANT, ABILITIES_CANCEL, CONTROL_ARBITER, CONTROL_ENDPOINT, CONTROL_INTENT_RECEIVER, CONTROL_QUERY, MOVEMENT_MOTOR, MOVEMENT_QUERY, INTERACTION_SOURCE, INTERACTION_TARGET, INTERACTION_QUERY, INTERACTION_RESERVABLE, PRESENTATION_CUE_RECEIVER, OBJECT_RESOLVER, SPAWN_SERVICE, TARGETING_SERVICE, TIME_SERVICE, PERSISTENCE_COORDINATOR, DAMAGE_RECEIVER, DEATH_POLICY, INVENTORY_OWNER, TEST_COUNTER, TEST_CHAIN, TEST_MULTI]
+static func is_known(capability_id: StringName) -> bool: return capability_id in ALL
