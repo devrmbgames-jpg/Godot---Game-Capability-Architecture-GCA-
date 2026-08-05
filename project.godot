@@ -14,6 +14,10 @@ config/name="Game Capability Architecture"
 config/features=PackedStringArray("4.6", "Mobile")
 config/icon="res://icon.svg"
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/gca_data_studio/plugin.cfg")
+
 [physics]
 
 3d/physics_engine="Jolt Physics"

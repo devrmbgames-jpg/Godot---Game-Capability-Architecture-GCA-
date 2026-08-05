@@ -11,15 +11,15 @@ const OBJECT_PROP_BARREL: StringName = &"object.prop.barrel"
 const ABILITY_BLOCKED_MOVEMENT: StringName = &"ability.blocked.movement"
 
 const ALL: Array[StringName] = [
-    STATE_DEAD,
-    STATE_DISABLED,
-    STATUS_BURNING,
-    TRAIT_FLAMMABLE,
-    FACTION_PLAYER,
-    OBJECT_PROP_BARREL,
-    ABILITY_BLOCKED_MOVEMENT,
+	STATE_DEAD,
+	STATE_DISABLED,
+	STATUS_BURNING,
+	TRAIT_FLAMMABLE,
+	FACTION_PLAYER,
+	OBJECT_PROP_BARREL,
+	ABILITY_BLOCKED_MOVEMENT,
 ]
 
 # ====== PUBLIC ========
 static func is_known(tag_id: StringName) -> bool:
-    return tag_id in ALL
+	return tag_id in ALL
