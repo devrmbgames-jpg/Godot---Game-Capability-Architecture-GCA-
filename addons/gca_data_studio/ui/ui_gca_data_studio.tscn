@@ -1,0 +1,218 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/gca_data_studio/ui/game_data_studio_dock.gd" id="1_dock"]
+
+[node name="GCADataStudio" type="Control" node_paths=PackedStringArray("root_layout", "toolbar_panel", "toolbar_container", "workspace_split", "navigation_panel", "navigation_container", "content_split", "table_panel", "table_container", "inspector_panel", "inspector_container", "footer_panel", "footer_container", "title_label", "navigation_title_label", "table_title_label", "inspector_title_label", "category_list", "search_edit", "definition_table", "definition_inspector", "status_label", "refresh_button", "validate_button", "create_button")]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_dock")
+root_layout = NodePath("RootMargin/RootLayout")
+toolbar_panel = NodePath("RootMargin/RootLayout/ToolbarPanel")
+toolbar_container = NodePath("RootMargin/RootLayout/ToolbarPanel/ToolbarMargin/ToolbarContainer")
+workspace_split = NodePath("RootMargin/RootLayout/WorkspaceSplit")
+navigation_panel = NodePath("RootMargin/RootLayout/WorkspaceSplit/NavigationPanel")
+navigation_container = NodePath("RootMargin/RootLayout/WorkspaceSplit/NavigationPanel/NavigationMargin/NavigationContainer")
+content_split = NodePath("RootMargin/RootLayout/WorkspaceSplit/ContentSplit")
+table_panel = NodePath("RootMargin/RootLayout/WorkspaceSplit/ContentSplit/TablePanel")
+table_container = NodePath("RootMargin/RootLayout/WorkspaceSplit/ContentSplit/TablePanel/TableMargin/TableContainer")
+inspector_panel = NodePath("RootMargin/RootLayout/WorkspaceSplit/ContentSplit/InspectorPanel")
+inspector_container = NodePath("RootMargin/RootLayout/WorkspaceSplit/ContentSplit/InspectorPanel/InspectorMargin/InspectorContainer")
+footer_panel = NodePath("RootMargin/RootLayout/FooterPanel")
+footer_container = NodePath("RootMargin/RootLayout/FooterPanel/FooterMargin/FooterContainer")
+title_label = NodePath("RootMargin/RootLayout/ToolbarPanel/ToolbarMargin/ToolbarContainer/TitleLabel")
+navigation_title_label = NodePath("RootMargin/RootLayout/WorkspaceSplit/NavigationPanel/NavigationMargin/NavigationContainer/NavigationTitleLabel")
+table_title_label = NodePath("RootMargin/RootLayout/WorkspaceSplit/ContentSplit/TablePanel/TableMargin/TableContainer/TableTitleLabel")
+inspector_title_label = NodePath("RootMargin/RootLayout/WorkspaceSplit/ContentSplit/InspectorPanel/InspectorMargin/InspectorContainer/InspectorTitleLabel")
+category_list = NodePath("RootMargin/RootLayout/WorkspaceSplit/NavigationPanel/NavigationMargin/NavigationContainer/CategoryList")
+search_edit = NodePath("RootMargin/RootLayout/ToolbarPanel/ToolbarMargin/ToolbarContainer/SearchEdit")
+definition_table = NodePath("RootMargin/RootLayout/WorkspaceSplit/ContentSplit/TablePanel/TableMargin/TableContainer/DefinitionTable")
+definition_inspector = NodePath("RootMargin/RootLayout/WorkspaceSplit/ContentSplit/InspectorPanel/InspectorMargin/InspectorContainer/DefinitionInspector")
+status_label = NodePath("RootMargin/RootLayout/FooterPanel/FooterMargin/FooterContainer/StatusLabel")
+refresh_button = NodePath("RootMargin/RootLayout/ToolbarPanel/ToolbarMargin/ToolbarContainer/RefreshButton")
+validate_button = NodePath("RootMargin/RootLayout/ToolbarPanel/ToolbarMargin/ToolbarContainer/ValidateButton")
+create_button = NodePath("RootMargin/RootLayout/ToolbarPanel/ToolbarMargin/ToolbarContainer/CreateButton")
+
+[node name="RootMargin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="RootLayout" type="VBoxContainer" parent="RootMargin"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 6
+
+[node name="ToolbarPanel" type="PanelContainer" parent="RootMargin/RootLayout"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ToolbarMargin" type="MarginContainer" parent="RootMargin/RootLayout/ToolbarPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="ToolbarContainer" type="HBoxContainer" parent="RootMargin/RootLayout/ToolbarPanel/ToolbarMargin"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="TitleLabel" type="Label" parent="RootMargin/RootLayout/ToolbarPanel/ToolbarMargin/ToolbarContainer"]
+custom_minimum_size = Vector2(165, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "GCA Data Studio"
+vertical_alignment = 1
+
+[node name="SearchEdit" type="LineEdit" parent="RootMargin/RootLayout/ToolbarPanel/ToolbarMargin/ToolbarContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Search ID, name or path"
+clear_button_enabled = true
+
+[node name="RefreshButton" type="Button" parent="RootMargin/RootLayout/ToolbarPanel/ToolbarMargin/ToolbarContainer"]
+layout_mode = 2
+text = "Refresh"
+
+[node name="ValidateButton" type="Button" parent="RootMargin/RootLayout/ToolbarPanel/ToolbarMargin/ToolbarContainer"]
+layout_mode = 2
+text = "Validate"
+
+[node name="CreateButton" type="Button" parent="RootMargin/RootLayout/ToolbarPanel/ToolbarMargin/ToolbarContainer"]
+layout_mode = 2
+text = "Create"
+
+[node name="WorkspaceSplit" type="HSplitContainer" parent="RootMargin/RootLayout"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+split_offset = 220
+
+[node name="NavigationPanel" type="PanelContainer" parent="RootMargin/RootLayout/WorkspaceSplit"]
+custom_minimum_size = Vector2(210, 0)
+layout_mode = 2
+
+[node name="NavigationMargin" type="MarginContainer" parent="RootMargin/RootLayout/WorkspaceSplit/NavigationPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="NavigationContainer" type="VBoxContainer" parent="RootMargin/RootLayout/WorkspaceSplit/NavigationPanel/NavigationMargin"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 4
+
+[node name="NavigationTitleLabel" type="Label" parent="RootMargin/RootLayout/WorkspaceSplit/NavigationPanel/NavigationMargin/NavigationContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Definitions"
+
+[node name="CategoryList" type="ItemList" parent="RootMargin/RootLayout/WorkspaceSplit/NavigationPanel/NavigationMargin/NavigationContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+allow_reselect = true
+
+[node name="ContentSplit" type="HSplitContainer" parent="RootMargin/RootLayout/WorkspaceSplit"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+split_offset = 760
+
+[node name="TablePanel" type="PanelContainer" parent="RootMargin/RootLayout/WorkspaceSplit/ContentSplit"]
+custom_minimum_size = Vector2(420, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="TableMargin" type="MarginContainer" parent="RootMargin/RootLayout/WorkspaceSplit/ContentSplit/TablePanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="TableContainer" type="VBoxContainer" parent="RootMargin/RootLayout/WorkspaceSplit/ContentSplit/TablePanel/TableMargin"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 4
+
+[node name="TableTitleLabel" type="Label" parent="RootMargin/RootLayout/WorkspaceSplit/ContentSplit/TablePanel/TableMargin/TableContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Definitions"
+
+[node name="DefinitionTable" type="Tree" parent="RootMargin/RootLayout/WorkspaceSplit/ContentSplit/TablePanel/TableMargin/TableContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+hide_root = true
+column_titles_visible = true
+allow_reselect = true
+
+[node name="InspectorPanel" type="PanelContainer" parent="RootMargin/RootLayout/WorkspaceSplit/ContentSplit"]
+custom_minimum_size = Vector2(360, 0)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="InspectorMargin" type="MarginContainer" parent="RootMargin/RootLayout/WorkspaceSplit/ContentSplit/InspectorPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="InspectorContainer" type="VBoxContainer" parent="RootMargin/RootLayout/WorkspaceSplit/ContentSplit/InspectorPanel/InspectorMargin"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 4
+
+[node name="InspectorTitleLabel" type="Label" parent="RootMargin/RootLayout/WorkspaceSplit/ContentSplit/InspectorPanel/InspectorMargin/InspectorContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Definition"
+
+[node name="DefinitionInspector" type="EditorInspector" parent="RootMargin/RootLayout/WorkspaceSplit/ContentSplit/InspectorPanel/InspectorMargin/InspectorContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="FooterPanel" type="PanelContainer" parent="RootMargin/RootLayout"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="FooterMargin" type="MarginContainer" parent="RootMargin/RootLayout/FooterPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 4
+
+[node name="FooterContainer" type="HBoxContainer" parent="RootMargin/RootLayout/FooterPanel/FooterMargin"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="StatusLabel" type="Label" parent="RootMargin/RootLayout/FooterPanel/FooterMargin/FooterContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Ready"
