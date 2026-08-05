@@ -7,16 +7,41 @@ const INDEX_SCRIPT: Script = preload("res://addons/gca_data_studio/core/game_dat
 const VALIDATOR_SCRIPT: Script = preload("res://addons/gca_data_studio/core/game_data_validator.gd")
 const SCHEMA_SCRIPT: Script = preload("res://addons/gca_data_studio/core/game_data_schema_registry.gd")
 
+# ======== EXPORT =========
+@export_category("Scene Layout")
+@export var root_layout: VBoxContainer = null
+@export var toolbar_panel: PanelContainer = null
+@export var toolbar_container: HBoxContainer = null
+@export var workspace_split: HSplitContainer = null
+@export var navigation_panel: PanelContainer = null
+@export var navigation_container: VBoxContainer = null
+@export var content_split: HSplitContainer = null
+@export var table_panel: PanelContainer = null
+@export var table_container: VBoxContainer = null
+@export var inspector_panel: PanelContainer = null
+@export var inspector_container: VBoxContainer = null
+@export var footer_panel: PanelContainer = null
+@export var footer_container: HBoxContainer = null
+
+@export_category("Scene Controls")
+@export var title_label: Label = null
+@export var navigation_title_label: Label = null
+@export var table_title_label: Label = null
+@export var inspector_title_label: Label = null
+@export var category_list: ItemList = null
+@export var search_edit: LineEdit = null
+@export var definition_table: Tree = null
+@export var definition_inspector: EditorInspector = null
+@export var status_label: Label = null
+@export var refresh_button: Button = null
+@export var validate_button: Button = null
+@export var create_button: Button = null
+
 # ======== PRIVATE VAR ======
 var _editor_interface: EditorInterface = null
 var _undo_redo: EditorUndoRedoManager = null
 var _index: GameDataIndex = null
 var _validator: GameDataValidator = null
-var _category_list: ItemList = null
-var _search_edit: LineEdit = null
-var _table: Tree = null
-var _inspector: EditorInspector = null
-var _status_label: Label = null
 var _selected_class: StringName = &""
 var _visible_records: Array[Dictionary] = []
 var _edited_resource: Resource = null
@@ -25,113 +50,108 @@ var _suppress_table_signal: bool = false
 # ======= OVERRIDE =======
 func _ready() -> void:
 	name = "GCADataStudio"
-	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_index = INDEX_SCRIPT.new() as GameDataIndex
 	_validator = VALIDATOR_SCRIPT.new() as GameDataValidator
-	_build_ui()
+	if not _validate_view_references():
+		return
+	_connect_view_signals()
+	_configure_view()
 	_rebuild_index()
 
 # ====== HELPERS ========
-func _build_ui() -> void:
-	var root: VBoxContainer = VBoxContainer.new()
-	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(root)
+func _validate_view_references() -> bool:
+	var required_references: Array[Dictionary] = [
+		{"name": "root_layout", "node": root_layout},
+		{"name": "toolbar_panel", "node": toolbar_panel},
+		{"name": "toolbar_container", "node": toolbar_container},
+		{"name": "workspace_split", "node": workspace_split},
+		{"name": "navigation_panel", "node": navigation_panel},
+		{"name": "navigation_container", "node": navigation_container},
+		{"name": "content_split", "node": content_split},
+		{"name": "table_panel", "node": table_panel},
+		{"name": "table_container", "node": table_container},
+		{"name": "inspector_panel", "node": inspector_panel},
+		{"name": "inspector_container", "node": inspector_container},
+		{"name": "footer_panel", "node": footer_panel},
+		{"name": "footer_container", "node": footer_container},
+		{"name": "title_label", "node": title_label},
+		{"name": "navigation_title_label", "node": navigation_title_label},
+		{"name": "table_title_label", "node": table_title_label},
+		{"name": "inspector_title_label", "node": inspector_title_label},
+		{"name": "category_list", "node": category_list},
+		{"name": "search_edit", "node": search_edit},
+		{"name": "definition_table", "node": definition_table},
+		{"name": "definition_inspector", "node": definition_inspector},
+		{"name": "status_label", "node": status_label},
+		{"name": "refresh_button", "node": refresh_button},
+		{"name": "validate_button", "node": validate_button},
+		{"name": "create_button", "node": create_button},
+	]
+	var valid: bool = true
+	for reference: Dictionary in required_references:
+		if reference.get("node") != null:
+			continue
+		push_error("GCA Data Studio scene reference '%s' is not assigned." % reference.get("name", "unknown"))
+		valid = false
+	return valid
 
-	var toolbar: HBoxContainer = HBoxContainer.new()
-	root.add_child(toolbar)
+func _connect_view_signals() -> void:
+	var search_callable: Callable = Callable(self, "_on_search_changed")
+	if not search_edit.text_changed.is_connected(search_callable):
+		search_edit.text_changed.connect(search_callable)
+	var refresh_callable: Callable = Callable(self, "_on_refresh_pressed")
+	if not refresh_button.pressed.is_connected(refresh_callable):
+		refresh_button.pressed.connect(refresh_callable)
+	var validate_callable: Callable = Callable(self, "_on_validate_pressed")
+	if not validate_button.pressed.is_connected(validate_callable):
+		validate_button.pressed.connect(validate_callable)
+	var create_callable: Callable = Callable(self, "_on_create_pressed")
+	if not create_button.pressed.is_connected(create_callable):
+		create_button.pressed.connect(create_callable)
+	var category_callable: Callable = Callable(self, "_on_category_selected")
+	if not category_list.item_selected.is_connected(category_callable):
+		category_list.item_selected.connect(category_callable)
+	var selection_callable: Callable = Callable(self, "_on_table_selection_changed")
+	if not definition_table.item_selected.is_connected(selection_callable):
+		definition_table.item_selected.connect(selection_callable)
+	var edited_callable: Callable = Callable(self, "_on_table_item_edited")
+	if not definition_table.item_edited.is_connected(edited_callable):
+		definition_table.item_edited.connect(edited_callable)
 
-	var title: Label = Label.new()
-	title.text = "GCA Data Studio"
-	title.add_theme_font_size_override(&"font_size", 20)
-	toolbar.add_child(title)
-
-	_search_edit = LineEdit.new()
-	_search_edit.placeholder_text = "Search ID, name or path"
-	_search_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_search_edit.text_changed.connect(_on_search_changed)
-	toolbar.add_child(_search_edit)
-
-	var refresh_button: Button = Button.new()
-	refresh_button.text = "Refresh"
-	refresh_button.pressed.connect(_rebuild_index)
-	toolbar.add_child(refresh_button)
-
-	var validate_button: Button = Button.new()
-	validate_button.text = "Validate"
-	validate_button.pressed.connect(_validate_project)
-	toolbar.add_child(validate_button)
-
-	var create_button: Button = Button.new()
-	create_button.text = "Create"
-	create_button.pressed.connect(_create_definition)
-	toolbar.add_child(create_button)
-
-	var split: HSplitContainer = HSplitContainer.new()
-	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_child(split)
-
-	_category_list = ItemList.new()
-	_category_list.custom_minimum_size.x = 190.0
-	_category_list.item_selected.connect(_on_category_selected)
-	split.add_child(_category_list)
-
-	var center_split: HSplitContainer = HSplitContainer.new()
-	split.add_child(center_split)
-
-	_table = Tree.new()
-	_table.hide_root = true
-	_table.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_table.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_table.item_selected.connect(_on_table_selection_changed)
-	_table.item_edited.connect(_on_table_item_edited)
-	center_split.add_child(_table)
-
-	var right_panel: VBoxContainer = VBoxContainer.new()
-	right_panel.custom_minimum_size.x = 360.0
-	center_split.add_child(right_panel)
-
-	var inspector_title: Label = Label.new()
-	inspector_title.text = "Definition"
-	inspector_title.add_theme_font_size_override(&"font_size", 16)
-	right_panel.add_child(inspector_title)
-
-	_inspector = EditorInspector.new()
-	_inspector.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_panel.add_child(_inspector)
-
-	_status_label = Label.new()
-	_status_label.text = "Ready"
-	root.add_child(_status_label)
+func _configure_view() -> void:
+	definition_table.hide_root = true
+	definition_table.set_column_titles_visible(true)
+	status_label.text = "Ready"
 
 func _rebuild_index() -> void:
 	_index.rebuild("res://content")
 	_populate_categories()
 	_refresh_table()
-	_status_label.text = "Indexed %d definitions" % _index.get_record_count()
+	status_label.text = "Indexed %d definitions" % _index.get_record_count()
 
 func _populate_categories() -> void:
-	_category_list.clear()
-	_category_list.add_item("All")
-	_category_list.set_item_metadata(0, &"")
+	category_list.clear()
+	category_list.add_item("All")
+	category_list.set_item_metadata(0, &"")
 	var classes: Array[StringName] = _index.get_resource_classes()
 	for resource_class: StringName in classes:
-		var item_index: int = _category_list.add_item(SCHEMA_SCRIPT.get_category_title(resource_class))
-		_category_list.set_item_metadata(item_index, resource_class)
-	_category_list.select(0)
+		var item_index: int = category_list.add_item(SCHEMA_SCRIPT.get_category_title(resource_class))
+		category_list.set_item_metadata(item_index, resource_class)
+	category_list.select(0)
 	_selected_class = &""
 
 func _refresh_table() -> void:
 	_suppress_table_signal = true
-	_table.clear()
+	definition_table.clear()
 	var records: Array[Dictionary] = _index.get_records(_selected_class)
 	_visible_records.clear()
-	var query: String = _search_edit.text.strip_edges().to_lower()
+	var query: String = search_edit.text.strip_edges().to_lower()
 	for record: Dictionary in records:
 		if not query.is_empty() and not _record_matches(record, query):
 			continue
 		_visible_records.append(record)
 	_configure_columns()
-	var root: TreeItem = _table.create_item()
+	var root: TreeItem = definition_table.create_item()
 	for record: Dictionary in _visible_records:
 		_add_record_row(root, record)
 	_suppress_table_signal = false
@@ -147,12 +167,11 @@ func _record_matches(record: Dictionary, query: String) -> bool:
 
 func _configure_columns() -> void:
 	var columns: Array[Dictionary] = _get_active_columns()
-	_table.columns = columns.size() + 2
-	_table.set_column_title(0, "Status")
-	_table.set_column_title(1, "Path")
-	_table.set_column_titles_visible(true)
+	definition_table.columns = columns.size() + 2
+	definition_table.set_column_title(0, "Status")
+	definition_table.set_column_title(1, "Path")
 	for index: int in range(columns.size()):
-		_table.set_column_title(index + 2, str(columns[index].get("title", "Value")))
+		definition_table.set_column_title(index + 2, str(columns[index].get("title", "Value")))
 
 func _get_active_columns() -> Array[Dictionary]:
 	if not _selected_class.is_empty():
@@ -163,7 +182,7 @@ func _get_active_columns() -> Array[Dictionary]:
 	]
 
 func _add_record_row(parent: TreeItem, record: Dictionary) -> void:
-	var item: TreeItem = _table.create_item(parent)
+	var item: TreeItem = definition_table.create_item(parent)
 	var resource: Resource = record.get("resource") as Resource
 	var issues: Array = record.get("issues", []) as Array
 	item.set_text(0, _format_status(issues))
@@ -238,7 +257,7 @@ func _format_issues(issues: Array) -> String:
 func _validate_project() -> void:
 	var report: Dictionary = _validator.validate(_index)
 	_refresh_table()
-	_status_label.text = "Validated %d definitions: %d errors, %d warnings" % [
+	status_label.text = "Validated %d definitions: %d errors, %d warnings" % [
 		int(report.get("record_count", 0)),
 		int(report.get("error_count", 0)),
 		int(report.get("warning_count", 0)),
@@ -246,17 +265,17 @@ func _validate_project() -> void:
 
 func _create_definition() -> void:
 	if _selected_class.is_empty():
-		_status_label.text = "Select a definition category before creating data"
+		status_label.text = "Select a definition category before creating data"
 		return
 	var schema: Dictionary = SCHEMA_SCRIPT.get_creation_schema(_selected_class)
 	var script_path: String = str(schema.get("script_path", ""))
 	var script: Script = load(script_path) as Script
 	if script == null:
-		_status_label.text = "Definition script not found: %s" % script_path
+		status_label.text = "Definition script not found: %s" % script_path
 		return
 	var resource: Resource = script.new() as Resource
 	if resource == null:
-		_status_label.text = "Could not instantiate %s" % _selected_class
+		status_label.text = "Could not instantiate %s" % _selected_class
 		return
 	var folder: String = str(schema.get("default_folder", "res://content/gameplay"))
 	var prefix: String = str(schema.get("file_prefix", "definition_"))
@@ -264,12 +283,12 @@ func _create_definition() -> void:
 	var path: String = _find_free_path(folder, prefix)
 	var error: Error = ResourceSaver.save(resource, path)
 	if error != OK:
-		_status_label.text = "Could not save definition: %s" % error_string(error)
+		status_label.text = "Could not save definition: %s" % error_string(error)
 		return
 	_editor_interface.get_resource_filesystem().scan()
 	_rebuild_index()
 	_select_path(path)
-	_status_label.text = "Created %s" % path
+	status_label.text = "Created %s" % path
 
 func _find_free_path(folder: String, prefix: String) -> String:
 	var index: int = 1
@@ -281,14 +300,14 @@ func _find_free_path(folder: String, prefix: String) -> String:
 	return folder.path_join("%snew.tres" % prefix)
 
 func _select_path(path: String) -> void:
-	var root: TreeItem = _table.get_root()
+	var root: TreeItem = definition_table.get_root()
 	if root == null:
 		return
 	var item: TreeItem = root.get_first_child()
 	while item != null:
 		if str(item.get_metadata(0)) == path:
 			item.select(0)
-			_table.scroll_to_item(item)
+			definition_table.scroll_to_item(item)
 			_on_table_selection_changed()
 			return
 		item = item.get_next()
@@ -336,29 +355,38 @@ func _save_resource(resource: Resource, path: String) -> void:
 	_validate_project()
 
 # ===== SLOTS =======
+func _on_refresh_pressed() -> void:
+	_rebuild_index()
+
+func _on_validate_pressed() -> void:
+	_validate_project()
+
+func _on_create_pressed() -> void:
+	_create_definition()
+
 func _on_category_selected(index: int) -> void:
-	_selected_class = StringName(_category_list.get_item_metadata(index))
+	_selected_class = StringName(category_list.get_item_metadata(index))
 	_refresh_table()
 
 func _on_search_changed(_text: String) -> void:
 	_refresh_table()
 
 func _on_table_selection_changed() -> void:
-	var item: TreeItem = _table.get_selected()
+	var item: TreeItem = definition_table.get_selected()
 	if item == null:
 		return
 	var path: String = str(item.get_metadata(0))
 	var record: Dictionary = _index.get_record(path)
 	_edited_resource = record.get("resource") as Resource
-	_inspector.edit(_edited_resource)
+	definition_inspector.edit(_edited_resource)
 	if _editor_interface != null and _edited_resource != null:
 		_editor_interface.edit_resource(_edited_resource)
 
 func _on_table_item_edited() -> void:
 	if _suppress_table_signal:
 		return
-	var item: TreeItem = _table.get_edited()
-	var edited_column: int = _table.get_edited_column()
+	var item: TreeItem = definition_table.get_edited()
+	var edited_column: int = definition_table.get_edited_column()
 	if item == null or edited_column < 2 or _selected_class.is_empty():
 		return
 	var columns: Array[Dictionary] = _get_active_columns()
