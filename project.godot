@@ -14,9 +14,13 @@ config/name="Game Capability Architecture"
 config/features=PackedStringArray("4.6", "Mobile")
 config/icon="res://icon.svg"
 
+[autoload]
+
+DialogueManager="*uid://c3rodes2l3gxb"
+
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/gca_data_studio/plugin.cfg")
+enabled=PackedStringArray("res://addons/dialogue_manager/plugin.cfg", "res://addons/gca_data_studio/plugin.cfg", "res://addons/goap/plugin.cfg")
 
 [physics]
 
