@@ -2,28 +2,25 @@
 
 `GCA Data Studio` — editor-only плагин для табличной работы с data-driven определениями Game Capability Architecture в Godot Engine 4.6.
 
-Плагин не заменяет Godot `Resource`, SceneTree или Inspector. Он индексирует обычные `.tres`/`.res` определения, показывает их в едином интерфейсе, позволяет быстро изменять простые поля, создавать новые определения и выполнять проектную валидацию.
+Плагин не заменяет Godot `Resource`, SceneTree или Inspector. Он индексирует обычные `.tres`/`.res` definitions, показывает их в едином интерфейсе, позволяет изменять простые поля, создавать новые определения и выполнять проектную валидацию.
 
 ## Текущая версия
 
-Версия `0.1.0` реализует первый рабочий слой:
+Версия `0.2.0` включает:
 
 - отдельный main-screen редактора `GCA Data Studio`;
+- полноценную редактируемую UI-сцену;
+- экспортируемые ссылки на ключевые панели, контейнеры и контролы;
 - рекурсивное индексирование GCA Resources из `res://content`;
 - таблицы Attributes, Meters, Effects и Abilities;
-- общий список всех индексируемых определений;
-- поддержка дополнительных `Game*` Resources со стабильным ID;
+- общий список индексируемых definitions;
 - поиск по ID, имени, типу и пути;
 - inline-редактирование строк, чисел, bool, enum и массивов `StringName`;
 - просмотр выбранного ресурса через стандартный `EditorInspector`;
 - создание новых definition Resources;
 - сохранение через `ResourceSaver`;
-- интеграция изменений с `EditorUndoRedoManager`;
-- проверка duplicate ID и вызов `definition.is_valid()`;
-- проверка Meter → Attribute;
-- проверка Effect modifier → Attribute;
-- проверка Effect meter operation → Meter;
-- базовая проверка Ability definitions.
+- интеграцию изменений с `EditorUndoRedoManager`;
+- validation stable IDs и связей между definitions.
 
 ## Установка
 
@@ -49,7 +46,114 @@ Project → Project Settings → Plugins
 GCA Data Studio
 ```
 
-Репозиторий GCA намеренно не содержит `project.godot`, сцен, `.tres`, `.uid` и бинарных ресурсов. Плагин необходимо перенести в целевой проект Godot 4.6 и включить там вручную.
+## UI-сцена
+
+Основной интерфейс хранится в сцене:
+
+```text
+res://addons/gca_data_studio/ui/ui_gca_data_studio.tscn
+```
+
+`GameDataStudioPlugin` инстанцирует эту сцену как обычный `PackedScene`. Скрипт больше не создаёт панели и поля программно.
+
+Базовая иерархия:
+
+```text
+GCADataStudio
+└── RootMargin
+    └── RootLayout
+        ├── ToolbarPanel
+        │   └── ToolbarMargin
+        │       └── ToolbarContainer
+        ├── WorkspaceSplit
+        │   ├── NavigationPanel
+        │   │   └── NavigationMargin
+        │   │       └── NavigationContainer
+        │   └── ContentSplit
+        │       ├── TablePanel
+        │       │   └── TableMargin
+        │       │       └── TableContainer
+        │       └── InspectorPanel
+        │           └── InspectorMargin
+        │               └── InspectorContainer
+        └── FooterPanel
+            └── FooterMargin
+                └── FooterContainer
+```
+
+Такое разделение позволяет менять внешний вид прямо в Godot Editor:
+
+- размеры и `custom_minimum_size` панелей;
+- отступы `MarginContainer`;
+- `split_offset` разделителей;
+- порядок и расположение областей;
+- Theme и theme overrides;
+- подписи и размеры заголовков;
+- оформление кнопок, таблицы и Inspector;
+- дополнительные декоративные или служебные Controls.
+
+## Экспортируемые ссылки сцены
+
+Корневой `GameDataStudioDock` содержит две группы экспортов.
+
+### Scene Layout
+
+```text
+root_layout
+toolbar_panel
+toolbar_container
+workspace_split
+navigation_panel
+navigation_container
+content_split
+table_panel
+table_container
+inspector_panel
+inspector_container
+footer_panel
+footer_container
+```
+
+Эти ссылки предназначены для ключевых областей дизайна. В контейнеры можно добавлять собственные подписи, разделители, панели, подсказки и другие элементы.
+
+### Scene Controls
+
+```text
+title_label
+navigation_title_label
+table_title_label
+inspector_title_label
+category_list
+search_edit
+definition_table
+definition_inspector
+status_label
+refresh_button
+validate_button
+create_button
+```
+
+Эти Controls используются логикой плагина. Их можно перемещать и стилизовать, пока экспортированные ссылки остаются назначенными и типы узлов совместимы с полями.
+
+### Правила редизайна
+
+Можно:
+
+- переименовывать и перемещать узлы через Scene dock;
+- оборачивать области дополнительными Containers;
+- менять PanelContainer, MarginContainer и SplitContainer настройки;
+- назначать собственную Theme;
+- добавлять новые Controls внутрь экспортированных контейнеров;
+- менять тексты заголовков и кнопок.
+
+Нельзя без изменения скрипта:
+
+- очищать обязательные exported references;
+- заменять `Tree`, `ItemList`, `LineEdit` или `EditorInspector` несовместимым типом;
+- удалять функциональные кнопки, не назначив вместо них другие;
+- отсоединять корневой скрипт `GameDataStudioDock`.
+
+При отсутствующей ссылке плагин выводит понятную editor error с именем незаполненного export-поля.
 
 ## Интерфейс
 
@@ -79,7 +183,7 @@ res://content
 - `GameMeterDefinition`;
 - `GameEffectDefinition`;
 - `GameAbilityDefinition`;
-- другие `Game*` Resources, если у них есть стабильное ID-поле.
+- другие `Game*` Resources со стабильным ID-полем.
 
 Поддерживаемые резервные ID-поля:
 
@@ -97,7 +201,7 @@ definition_id
 id
 ```
 
-Сырые текстуры, модели, материалы и другие Resources без GCA ID в таблицу не попадают.
+Сырые текстуры, модели, материалы и Resources без GCA ID в таблицу не попадают.
 
 ## Таблицы
 
@@ -157,19 +261,9 @@ meter_operations: Array[Dictionary]
 GameAbilityDefinition
 ```
 
-В таблице доступны:
+В таблице доступны stable ID, display name, passive state, cooldown, channels, conflict policy, persistence flags и schema version.
 
-- stable ID;
-- display name;
-- passive state;
-- cooldown;
-- cooldown key;
-- occupied channels;
-- conflict policy;
-- persistence flags;
-- schema version.
-
-Requirements, costs и operations остаются обычными вложенными Resources и редактируются через Inspector.
+Requirements, costs и operations остаются вложенными Resources и редактируются через Inspector.
 
 ## Создание Definition
 
@@ -178,7 +272,7 @@ Requirements, costs и operations остаются обычными вложен
 3. Плагин создаст новый Resource в стандартном каталоге категории.
 4. Отредактировать stable ID и остальные поля в таблице или Inspector.
 
-Примеры автоматически используемых каталогов:
+Стандартные каталоги:
 
 ```text
 res://content/gameplay/attributes
@@ -198,8 +292,6 @@ ability_*.tres
 
 Stable ID и путь файла являются разными контрактами. Переименование файла не должно неявно менять ID.
 
-Новая active ability может сразу получить validation error, потому что `GameAbilityDefinition.is_valid()` требует хотя бы одну operation. Это ожидаемо: добавьте operations через Inspector.
-
 ## Inline-редактирование
 
 Поддерживаются:
@@ -213,7 +305,7 @@ Stable ID и путь файла являются разными контрак�
 
 Изменения применяются к исходному Resource и сохраняются. Undo/Redo проходит через `EditorUndoRedoManager`.
 
-Сложные значения следует редактировать через Inspector:
+Сложные значения редактируются через Inspector:
 
 - вложенные Resources;
 - массивы Resources;
@@ -260,31 +352,17 @@ addons/gca_data_studio/
 │   ├── game_data_index.gd
 │   └── game_data_validator.gd
 └── ui/
+    ├── ui_gca_data_studio.tscn
     └── game_data_studio_dock.gd
 ```
 
 ### GameDataSchemaRegistry
 
-Описывает:
-
-- поддерживаемые definition classes;
-- ID и display properties;
-- таблицы и типы ячеек;
-- каталоги создания;
-- правила имён файлов.
-
-Новые типы данных добавляются через новую schema entry, а не через hardcoded ветвления UI.
+Описывает поддерживаемые definition classes, ID/display properties, таблицы, типы ячеек, каталоги создания и правила имён файлов.
 
 ### GameDataIndex
 
-Отвечает за:
-
-- обход каталогов;
-- загрузку `.tres`/`.res`;
-- определение класса и stable ID;
-- сортировку;
-- быстрый поиск по пути и типу;
-- хранение validation issues.
+Отвечает за обход каталогов, загрузку `.tres`/`.res`, определение класса и stable ID, сортировку, поиск и хранение validation issues.
 
 ### GameDataValidator
 
@@ -292,7 +370,11 @@ addons/gca_data_studio/
 
 ### GameDataStudioDock
 
-Строит main-screen интерфейс и связывает таблицу, Inspector, индекс, валидатор, создание и Undo/Redo.
+Содержит логику таблицы, Inspector, индекса, валидатора, создания и Undo/Redo. Визуальные узлы получает через exported scene references.
+
+### ui_gca_data_studio.tscn
+
+Является единственным источником UI-композиции Data Studio. `EditorPlugin` инстанцирует её как `PackedScene`.
 
 ## Архитектурные ограничения
 
@@ -305,10 +387,9 @@ addons/gca_data_studio/
 - не создаёт скрытые gameplay-компоненты;
 - не хранит runtime handles как persistent IDs;
 - не изменяет shared definitions во время игры;
-- не редактирует NodePath-ссылки между узлами сцены через таблицу;
-- не создаёт `project.godot`, `.tscn`, `.tres`, `.uid` или бинарные примеры внутри репозитория GCA.
+- не редактирует NodePath-ссылки между gameplay-узлами через таблицу.
 
-## Ограничения версии 0.1.0
+## Ограничения версии 0.2.0
 
 - Нет отдельного gameplay tag catalog и tag picker.
 - Нет вложенных таблиц для costs, requirements, operations и effect specs.
@@ -317,7 +398,6 @@ addons/gca_data_studio/
 - Нет runtime monitor.
 - Нет generated `GameDefinitionCatalog`.
 - Нет массового multi-row редактирования.
-- Проверка в настоящем Godot 4.6 должна выполняться после переноса файлов в проект, поскольку этот репозиторий не содержит project file.
 
 ## Следующие этапы
 
