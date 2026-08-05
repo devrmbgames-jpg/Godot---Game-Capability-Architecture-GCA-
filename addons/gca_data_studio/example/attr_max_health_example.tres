@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="GameAttributeDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://content/core/attributes/definitions/game_attribute_definition.gd" id="1_definition"]
+
+[resource]
+script = ExtResource("1_definition")
+attribute_id = &"example.attribute.max_health"
+display_name = "Example Max Health"
+debug_description = "Maximum health used by the example health meter."
+default_base = 100.0
+clamp_policy = 3
+minimum = 1.0
+maximum = 10000.0
+display_precision = 0
+save_base = true
+category_tags = Array[StringName]([])

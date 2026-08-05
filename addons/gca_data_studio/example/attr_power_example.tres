@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="GameAttributeDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://content/core/attributes/definitions/game_attribute_definition.gd" id="1_definition"]
+
+[resource]
+script = ExtResource("1_definition")
+attribute_id = &"example.attribute.power"
+display_name = "Example Power"
+debug_description = "Power modified by the example battle focus effect."
+default_base = 20.0
+clamp_policy = 3
+minimum = 0.0
+maximum = 1000.0
+display_precision = 1
+save_base = true
+category_tags = Array[StringName]([])
