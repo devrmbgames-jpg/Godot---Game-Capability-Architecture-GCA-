@@ -1,0 +1,63 @@
+[gd_scene load_steps=11 format=3]
+
+[ext_resource type="Script" path="res://content/gameplay/example/door/game_door_example.gd" id="1_root"]
+[ext_resource type="Script" path="res://content/core/object/kernel/game_object_kernel.gd" id="2_kernel"]
+[ext_resource type="Script" path="res://content/core/object/identity/game_object_identity.gd" id="3_identity"]
+[ext_resource type="Script" path="res://content/core/tags/game_tag_container.gd" id="4_tags"]
+[ext_resource type="Script" path="res://content/core/interaction/target/game_interaction_target.gd" id="5_interaction"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_frame"]
+size = Vector3(2.4, 2.6, 0.3)
+
+[sub_resource type="BoxMesh" id="BoxMesh_door"]
+size = Vector3(1.9, 2.3, 0.18)
+
+[sub_resource type="StandardMaterial3D" id="Material_frame"]
+albedo_color = Color(0.08, 0.15, 0.28, 1)
+
+[sub_resource type="StandardMaterial3D" id="Material_door"]
+albedo_color = Color(0.12, 0.42, 0.9, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape_door"]
+size = Vector3(2.0, 2.4, 0.25)
+
+[node name="DoorExample" type="AnimatableBody3D" node_paths=PackedStringArray("kernel", "door_visual", "interaction_target")]
+script = ExtResource("1_root")
+kernel = NodePath("GameObjectKernel")
+door_visual = NodePath("DoorPivot")
+interaction_target = NodePath("GameObjectKernel/GameInteractionTarget")
+
+[node name="Frame" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_frame")
+material_override = SubResource("Material_frame")
+position = Vector3(0, 1.3, 0)
+
+[node name="DoorPivot" type="Node3D" parent="."]
+position = Vector3(-0.95, 0, 0)
+
+[node name="DoorLeaf" type="MeshInstance3D" parent="DoorPivot"]
+position = Vector3(0.95, 1.15, 0)
+mesh = SubResource("BoxMesh_door")
+material_override = SubResource("Material_door")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 1.2, 0)
+shape = SubResource("BoxShape_door")
+
+[node name="GameObjectKernel" type="Node" parent="."]
+script = ExtResource("2_kernel")
+
+[node name="GameObjectIdentity" type="Node" parent="GameObjectKernel"]
+script = ExtResource("3_identity")
+stable_id = &"example.door"
+definition_id = &"example.scene.door"
+category_tags = Array[StringName]([&"object.prop.door"])
+
+[node name="GameTagContainer" type="Node" parent="GameObjectKernel"]
+script = ExtResource("4_tags")
+permanent_tags = Array[StringName]([&"object.prop.door"])
+reject_unknown_tags = false
+
+[node name="GameInteractionTarget" type="Node" parent="GameObjectKernel"]
+script = ExtResource("5_interaction")
+reservation_timeout = 5.0

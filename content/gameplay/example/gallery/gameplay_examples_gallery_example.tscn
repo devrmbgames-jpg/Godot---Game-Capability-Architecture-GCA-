@@ -1,0 +1,38 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://content/gameplay/example/gallery/game_gameplay_examples_gallery_example.gd" id="1_root"]
+[ext_resource type="PackedScene" path="res://content/gameplay/example/mine/prop_mine_example.tscn" id="2_mine"]
+[ext_resource type="PackedScene" path="res://content/gameplay/example/door/prop_door_example.tscn" id="3_door"]
+[ext_resource type="PackedScene" path="res://content/gameplay/example/character/ent_third_person_character_example.tscn" id="4_player"]
+[ext_resource type="PackedScene" path="res://content/gameplay/example/chest/prop_chest_example.tscn" id="5_chest"]
+[ext_resource type="PackedScene" path="res://content/gameplay/example/enemy/ent_enemy_example.tscn" id="6_enemy"]
+[ext_resource type="PackedScene" path="res://content/gameplay/example/npc/ent_npc_example.tscn" id="7_npc"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_floor"]
+size = Vector2(24, 18)
+
+[node name="GameplayExamplesGalleryExample" type="Node3D" node_paths=PackedStringArray("enemy", "player")]
+script = ExtResource("1_root")
+enemy = NodePath("EnemyExample")
+player = NodePath("ThirdPersonCharacterExample")
+
+[node name="Floor" type="MeshInstance3D" parent="."]
+mesh = SubResource("PlaneMesh_floor")
+
+[node name="ThirdPersonCharacterExample" parent="." instance=ExtResource("4_player")]
+position = Vector3(0, 0, 4)
+
+[node name="EnemyExample" parent="." instance=ExtResource("6_enemy")]
+position = Vector3(0, 0, -4)
+
+[node name="NPCExample" parent="." instance=ExtResource("7_npc")]
+position = Vector3(4, 0, 1)
+
+[node name="DoorExample" parent="." instance=ExtResource("3_door")]
+position = Vector3(-4, 0, -1)
+
+[node name="ChestExample" parent="." instance=ExtResource("5_chest")]
+position = Vector3(4, 0, -4)
+
+[node name="MineExample" parent="." instance=ExtResource("2_mine")]
+position = Vector3(-3, 0.15, 4)

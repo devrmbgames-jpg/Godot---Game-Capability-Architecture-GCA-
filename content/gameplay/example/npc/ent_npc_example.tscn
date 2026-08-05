@@ -1,0 +1,96 @@
+[gd_scene load_steps=24 format=3]
+
+[ext_resource type="Script" path="res://content/gameplay/example/npc/game_npc_example.gd" id="1_root"]
+[ext_resource type="Script" path="res://content/core/object/kernel/game_object_kernel.gd" id="2_kernel"]
+[ext_resource type="Script" path="res://content/core/object/identity/game_object_identity.gd" id="3_identity"]
+[ext_resource type="Script" path="res://content/core/tags/game_tag_container.gd" id="4_tags"]
+[ext_resource type="Script" path="res://content/core/attributes/runtime/game_attributes.gd" id="5_attributes"]
+[ext_resource type="Script" path="res://content/core/attributes/definitions/game_attribute_definition.gd" id="6_attribute_definition"]
+[ext_resource type="Resource" path="res://content/gameplay/example/shared/attr_movement_speed_example.tres" id="7_speed"]
+[ext_resource type="Resource" path="res://content/gameplay/example/shared/attr_max_health_actor_example.tres" id="8_health_attr"]
+[ext_resource type="Script" path="res://content/core/meters/runtime/game_meters.gd" id="9_meters"]
+[ext_resource type="Script" path="res://content/core/meters/definitions/game_meter_definition.gd" id="10_meter_definition"]
+[ext_resource type="Resource" path="res://content/gameplay/example/shared/meter_health_actor_example.tres" id="11_health_meter"]
+[ext_resource type="Script" path="res://content/core/effects/runtime/game_effects.gd" id="12_effects"]
+[ext_resource type="Script" path="res://content/core/abilities/game_abilities.gd" id="13_abilities"]
+[ext_resource type="Script" path="res://content/core/control/arbiter/game_control_arbiter.gd" id="14_arbiter"]
+[ext_resource type="Script" path="res://content/core/control/endpoint/game_control_endpoint.gd" id="15_endpoint"]
+[ext_resource type="Script" path="res://content/core/movement/motors/game_character_motor.gd" id="16_motor"]
+[ext_resource type="Script" path="res://content/core/control/sources/game_scripted_control_source.gd" id="17_scripted_source"]
+[ext_resource type="Script" path="res://content/core/interaction/target/game_interaction_target.gd" id="18_interaction"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_npc"]
+size = Vector3(1, 2, 1)
+
+[sub_resource type="StandardMaterial3D" id="Material_npc"]
+albedo_color = Color(0.1, 0.82, 0.32, 1)
+roughness = 0.65
+
+[sub_resource type="BoxShape3D" id="BoxShape_npc"]
+size = Vector3(1, 2, 1)
+
+[node name="NPCExample" type="CharacterBody3D" node_paths=PackedStringArray("kernel", "interaction_target", "scripted_control_source", "control_arbiter", "control_endpoint")]
+script = ExtResource("1_root")
+kernel = NodePath("GameObjectKernel")
+interaction_target = NodePath("GameObjectKernel/GameInteractionTarget")
+scripted_control_source = NodePath("GameScriptedControlSource")
+control_arbiter = NodePath("GameObjectKernel/GameControlArbiter")
+control_endpoint = NodePath("GameObjectKernel/GameControlEndpoint")
+
+[node name="Visual" type="MeshInstance3D" parent="."]
+position = Vector3(0, 1, 0)
+mesh = SubResource("BoxMesh_npc")
+material_override = SubResource("Material_npc")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 1, 0)
+shape = SubResource("BoxShape_npc")
+
+[node name="GameObjectKernel" type="Node" parent="."]
+script = ExtResource("2_kernel")
+
+[node name="GameObjectIdentity" type="Node" parent="GameObjectKernel"]
+script = ExtResource("3_identity")
+stable_id = &"example.npc.guide"
+definition_id = &"example.scene.npc"
+category_tags = Array[StringName]([&"object.entity.npc", &"faction.neutral"])
+
+[node name="GameTagContainer" type="Node" parent="GameObjectKernel"]
+script = ExtResource("4_tags")
+permanent_tags = Array[StringName]([&"object.entity.npc", &"faction.neutral"])
+reject_unknown_tags = false
+
+[node name="GameAttributes" type="Node" parent="GameObjectKernel"]
+script = ExtResource("5_attributes")
+definitions = Array[ExtResource("6_attribute_definition")]([ExtResource("7_speed"), ExtResource("8_health_attr")])
+
+[node name="GameMeters" type="Node" parent="GameObjectKernel"]
+script = ExtResource("9_meters")
+definitions = Array[ExtResource("10_meter_definition")]([ExtResource("11_health_meter")])
+
+[node name="GameEffects" type="Node" parent="GameObjectKernel"]
+script = ExtResource("12_effects")
+
+[node name="GameAbilities" type="Node" parent="GameObjectKernel"]
+script = ExtResource("13_abilities")
+
+[node name="GameControlArbiter" type="Node" parent="GameObjectKernel"]
+script = ExtResource("14_arbiter")
+
+[node name="GameControlEndpoint" type="Node" parent="GameObjectKernel"]
+script = ExtResource("15_endpoint")
+
+[node name="GameCharacterMotor" type="Node" parent="GameObjectKernel"]
+script = ExtResource("16_motor")
+speed_attribute_id = &"example.attribute.movement_speed"
+fallback_speed = 3.5
+
+[node name="GameInteractionTarget" type="Node" parent="GameObjectKernel"]
+script = ExtResource("18_interaction")
+reservation_timeout = 10.0
+
+[node name="GameScriptedControlSource" type="Node" parent="."]
+script = ExtResource("17_scripted_source")
+source_id = &"example.control.npc_scripted"
+requested_channels = Array[StringName]([&"movement", &"look", &"abilities", &"interaction"])
+priority = 100
