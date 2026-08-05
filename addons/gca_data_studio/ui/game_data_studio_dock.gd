@@ -9,18 +9,24 @@ const SCHEMA_SCRIPT: Script = preload("res://addons/gca_data_studio/core/game_da
 
 # ======== EXPORT =========
 @export_category("Scene Layout")
+@export var root_margin: MarginContainer = null
 @export var root_layout: VBoxContainer = null
 @export var toolbar_panel: PanelContainer = null
+@export var toolbar_margin: MarginContainer = null
 @export var toolbar_container: HBoxContainer = null
 @export var workspace_split: HSplitContainer = null
 @export var navigation_panel: PanelContainer = null
+@export var navigation_margin: MarginContainer = null
 @export var navigation_container: VBoxContainer = null
 @export var content_split: HSplitContainer = null
 @export var table_panel: PanelContainer = null
+@export var table_margin: MarginContainer = null
 @export var table_container: VBoxContainer = null
 @export var inspector_panel: PanelContainer = null
+@export var inspector_margin: MarginContainer = null
 @export var inspector_container: VBoxContainer = null
 @export var footer_panel: PanelContainer = null
+@export var footer_margin: MarginContainer = null
 @export var footer_container: HBoxContainer = null
 
 @export_category("Scene Controls")
@@ -61,23 +67,6 @@ func _ready() -> void:
 # ====== HELPERS ========
 func _validate_view_references() -> bool:
 	var required_references: Array[Dictionary] = [
-		{"name": "root_layout", "node": root_layout},
-		{"name": "toolbar_panel", "node": toolbar_panel},
-		{"name": "toolbar_container", "node": toolbar_container},
-		{"name": "workspace_split", "node": workspace_split},
-		{"name": "navigation_panel", "node": navigation_panel},
-		{"name": "navigation_container", "node": navigation_container},
-		{"name": "content_split", "node": content_split},
-		{"name": "table_panel", "node": table_panel},
-		{"name": "table_container", "node": table_container},
-		{"name": "inspector_panel", "node": inspector_panel},
-		{"name": "inspector_container", "node": inspector_container},
-		{"name": "footer_panel", "node": footer_panel},
-		{"name": "footer_container", "node": footer_container},
-		{"name": "title_label", "node": title_label},
-		{"name": "navigation_title_label", "node": navigation_title_label},
-		{"name": "table_title_label", "node": table_title_label},
-		{"name": "inspector_title_label", "node": inspector_title_label},
 		{"name": "category_list", "node": category_list},
 		{"name": "search_edit", "node": search_edit},
 		{"name": "definition_table", "node": definition_table},
@@ -349,6 +338,15 @@ func set_editor_context(editor_interface: EditorInterface, undo_redo: EditorUndo
 	_editor_interface = editor_interface
 	_undo_redo = undo_redo
 
+func refresh_data() -> void:
+	_rebuild_index()
+
+func validate_data() -> void:
+	_validate_project()
+
+func create_definition() -> void:
+	_create_definition()
+
 func _save_resource(resource: Resource, path: String) -> void:
 	ResourceSaver.save(resource, path)
 	_index.refresh_record(path)
@@ -356,13 +354,13 @@ func _save_resource(resource: Resource, path: String) -> void:
 
 # ===== SLOTS =======
 func _on_refresh_pressed() -> void:
-	_rebuild_index()
+	refresh_data()
 
 func _on_validate_pressed() -> void:
-	_validate_project()
+	validate_data()
 
 func _on_create_pressed() -> void:
-	_create_definition()
+	create_definition()
 
 func _on_category_selected(index: int) -> void:
 	_selected_class = StringName(category_list.get_item_metadata(index))
