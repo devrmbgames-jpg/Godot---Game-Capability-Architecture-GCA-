@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="GameAttributeDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://content/core/attributes/definitions/game_attribute_definition.gd" id="1_definition"]
+
+[resource]
+script = ExtResource("1_definition")
+attribute_id = &"example.attribute.movement_speed"
+display_name = "Example Movement Speed"
+debug_description = "Movement speed used by primitive character examples."
+default_base = 5.0
+clamp_policy = 3
+minimum = 0.0
+maximum = 20.0
+display_precision = 2
+save_base = true
+category_tags = Array[StringName]([&"example.attribute.movement"])

@@ -1,0 +1,131 @@
+[gd_scene load_steps=27 format=3]
+
+[ext_resource type="Script" path="res://content/gameplay/example/goap/game_goap_survival_example.gd" id="1_root"]
+[ext_resource type="Script" path="res://content/core/object/kernel/game_object_kernel.gd" id="2_kernel"]
+[ext_resource type="Script" path="res://content/core/object/identity/game_object_identity.gd" id="3_identity"]
+[ext_resource type="Script" path="res://content/core/tags/game_tag_container.gd" id="4_tags"]
+[ext_resource type="Script" path="res://addons/goap/goap_agent.gd" id="5_agent"]
+[ext_resource type="Script" path="res://content/integrations/goap/game_goap_adapter.gd" id="6_adapter"]
+[ext_resource type="Script" path="res://content/core/control/sources/game_mock_ai_control_source.gd" id="7_control"]
+[ext_resource type="Script" path="res://content/gameplay/example/goap/game_goap_survival_goal_example.gd" id="8_goal"]
+[ext_resource type="Script" path="res://content/gameplay/example/goap/game_goap_find_food_action_example.gd" id="9_find"]
+[ext_resource type="Script" path="res://content/gameplay/example/goap/game_goap_take_food_action_example.gd" id="10_take"]
+[ext_resource type="Script" path="res://content/gameplay/example/goap/game_goap_cook_food_action_example.gd" id="11_cook"]
+[ext_resource type="Script" path="res://content/gameplay/example/goap/game_goap_eat_food_action_example.gd" id="12_eat"]
+[ext_resource type="Script" path="res://content/gameplay/example/goap/game_goap_sleep_action_example.gd" id="13_sleep"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_actor"]
+size = Vector3(1, 2, 1)
+
+[sub_resource type="StandardMaterial3D" id="Material_actor"]
+albedo_color = Color(0.98, 0.76, 0.1, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape_actor"]
+size = Vector3(1, 2, 1)
+
+[sub_resource type="SphereMesh" id="SphereMesh_food"]
+radius = 0.35
+height = 0.7
+
+[sub_resource type="StandardMaterial3D" id="Material_food"]
+albedo_color = Color(0.9, 0.1, 0.08, 1)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_cooked"]
+top_radius = 0.4
+bottom_radius = 0.4
+height = 0.25
+
+[sub_resource type="StandardMaterial3D" id="Material_cooked"]
+albedo_color = Color(0.45, 0.18, 0.03, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_bed"]
+size = Vector3(1.4, 0.35, 2.4)
+
+[sub_resource type="StandardMaterial3D" id="Material_bed"]
+albedo_color = Color(0.2, 0.35, 0.95, 1)
+
+[node name="GOAPSurvivalExample" type="CharacterBody3D" node_paths=PackedStringArray("kernel", "goap_agent", "goap_adapter", "control_source", "food_visual", "cooked_visual", "bed_visual")]
+script = ExtResource("1_root")
+kernel = NodePath("GameObjectKernel")
+goap_agent = NodePath("GoapAgent")
+goap_adapter = NodePath("GameGOAPAdapter")
+control_source = NodePath("GameMockAIControlSource")
+food_visual = NodePath("Food")
+cooked_visual = NodePath("CookedFood")
+bed_visual = NodePath("Bed")
+
+[node name="ActorVisual" type="MeshInstance3D" parent="."]
+position = Vector3(0, 1, 0)
+mesh = SubResource("BoxMesh_actor")
+material_override = SubResource("Material_actor")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 1, 0)
+shape = SubResource("BoxShape_actor")
+
+[node name="Food" type="MeshInstance3D" parent="."]
+position = Vector3(3, 0.35, 0)
+mesh = SubResource("SphereMesh_food")
+material_override = SubResource("Material_food")
+
+[node name="CookedFood" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.2, 3)
+mesh = SubResource("CylinderMesh_cooked")
+material_override = SubResource("Material_cooked")
+visible = false
+
+[node name="Bed" type="MeshInstance3D" parent="."]
+position = Vector3(-3, 0.2, 0)
+mesh = SubResource("BoxMesh_bed")
+material_override = SubResource("Material_bed")
+
+[node name="GameObjectKernel" type="Node" parent="."]
+script = ExtResource("2_kernel")
+
+[node name="GameObjectIdentity" type="Node" parent="GameObjectKernel"]
+script = ExtResource("3_identity")
+stable_id = &"example.goap.survival_actor"
+definition_id = &"example.scene.goap_survival"
+category_tags = Array[StringName]([&"object.entity.npc", &"ai.goap"])
+
+[node name="GameTagContainer" type="Node" parent="GameObjectKernel"]
+script = ExtResource("4_tags")
+permanent_tags = Array[StringName]([&"object.entity.npc", &"ai.goap"])
+reject_unknown_tags = false
+
+[node name="GameMockAIControlSource" type="Node" parent="."]
+script = ExtResource("7_control")
+source_id = &"example.control.goap"
+requested_channels = Array[StringName]([&"movement", &"abilities", &"interaction"])
+priority = 25
+
+[node name="GameGOAPAdapter" type="Node" parent="."]
+script = ExtResource("6_adapter")
+
+[node name="GoapAgent" type="Node" parent="." node_paths=PackedStringArray("actions_node", "goals_node")]
+script = ExtResource("5_agent")
+actions_node = NodePath("Actions")
+goals_node = NodePath("Goals")
+debug_enabled = true
+
+[node name="Actions" type="Node" parent="GoapAgent"]
+
+[node name="FindFood" type="Node" parent="GoapAgent/Actions"]
+script = ExtResource("9_find")
+
+[node name="TakeFood" type="Node" parent="GoapAgent/Actions"]
+script = ExtResource("10_take")
+
+[node name="CookFood" type="Node" parent="GoapAgent/Actions"]
+script = ExtResource("11_cook")
+
+[node name="EatFood" type="Node" parent="GoapAgent/Actions"]
+script = ExtResource("12_eat")
+
+[node name="Sleep" type="Node" parent="GoapAgent/Actions"]
+script = ExtResource("13_sleep")
+
+[node name="Goals" type="Node" parent="GoapAgent"]
+
+[node name="Survive" type="Node" parent="GoapAgent/Goals"]
+script = ExtResource("8_goal")
