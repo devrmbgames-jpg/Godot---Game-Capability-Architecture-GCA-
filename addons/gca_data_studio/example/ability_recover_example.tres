@@ -29,7 +29,6 @@ required_owner_capabilities = Array[StringName]([&"effects.receiver", &"meters.m
 required_owner_tags = Array[StringName]([])
 blocked_owner_tags = Array[StringName]([])
 granted_tags_during_execution = Array[StringName]([])
-requirements = Array[Resource]([])
 costs = Array[ExtResource("6_cost_base")]([SubResource("Resource_energy_cost")])
 cooldown_duration = 5.0
 cooldown_key = &"example.cooldown.recover"
