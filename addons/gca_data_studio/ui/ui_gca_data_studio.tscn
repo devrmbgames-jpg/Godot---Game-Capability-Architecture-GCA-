@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://addons/gca_data_studio/ui/game_data_studio_dock.gd" id="1_dock"]
 
-[node name="GCADataStudio" type="Control" node_paths=PackedStringArray("root_layout", "toolbar_panel", "toolbar_container", "workspace_split", "navigation_panel", "navigation_container", "content_split", "table_panel", "table_container", "inspector_panel", "inspector_container", "footer_panel", "footer_container", "title_label", "navigation_title_label", "table_title_label", "inspector_title_label", "category_list", "search_edit", "definition_table", "definition_inspector", "status_label", "refresh_button", "validate_button", "create_button")]
+[node name="GCADataStudio" type="Control" node_paths=PackedStringArray("root_margin", "root_layout", "toolbar_panel", "toolbar_margin", "toolbar_container", "workspace_split", "navigation_panel", "navigation_margin", "navigation_container", "content_split", "table_panel", "table_margin", "table_container", "inspector_panel", "inspector_margin", "inspector_container", "footer_panel", "footer_margin", "footer_container", "title_label", "navigation_title_label", "table_title_label", "inspector_title_label", "category_list", "search_edit", "definition_table", "definition_inspector", "status_label", "refresh_button", "validate_button", "create_button")]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -12,18 +12,24 @@ grow_vertical = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 script = ExtResource("1_dock")
+root_margin = NodePath("RootMargin")
 root_layout = NodePath("RootMargin/RootLayout")
 toolbar_panel = NodePath("RootMargin/RootLayout/ToolbarPanel")
+toolbar_margin = NodePath("RootMargin/RootLayout/ToolbarPanel/ToolbarMargin")
 toolbar_container = NodePath("RootMargin/RootLayout/ToolbarPanel/ToolbarMargin/ToolbarContainer")
 workspace_split = NodePath("RootMargin/RootLayout/WorkspaceSplit")
 navigation_panel = NodePath("RootMargin/RootLayout/WorkspaceSplit/NavigationPanel")
+navigation_margin = NodePath("RootMargin/RootLayout/WorkspaceSplit/NavigationPanel/NavigationMargin")
 navigation_container = NodePath("RootMargin/RootLayout/WorkspaceSplit/NavigationPanel/NavigationMargin/NavigationContainer")
 content_split = NodePath("RootMargin/RootLayout/WorkspaceSplit/ContentSplit")
 table_panel = NodePath("RootMargin/RootLayout/WorkspaceSplit/ContentSplit/TablePanel")
+table_margin = NodePath("RootMargin/RootLayout/WorkspaceSplit/ContentSplit/TablePanel/TableMargin")
 table_container = NodePath("RootMargin/RootLayout/WorkspaceSplit/ContentSplit/TablePanel/TableMargin/TableContainer")
 inspector_panel = NodePath("RootMargin/RootLayout/WorkspaceSplit/ContentSplit/InspectorPanel")
+inspector_margin = NodePath("RootMargin/RootLayout/WorkspaceSplit/ContentSplit/InspectorPanel/InspectorMargin")
 inspector_container = NodePath("RootMargin/RootLayout/WorkspaceSplit/ContentSplit/InspectorPanel/InspectorMargin/InspectorContainer")
 footer_panel = NodePath("RootMargin/RootLayout/FooterPanel")
+footer_margin = NodePath("RootMargin/RootLayout/FooterPanel/FooterMargin")
 footer_container = NodePath("RootMargin/RootLayout/FooterPanel/FooterMargin/FooterContainer")
 title_label = NodePath("RootMargin/RootLayout/ToolbarPanel/ToolbarMargin/ToolbarContainer/TitleLabel")
 navigation_title_label = NodePath("RootMargin/RootLayout/WorkspaceSplit/NavigationPanel/NavigationMargin/NavigationContainer/NavigationTitleLabel")
