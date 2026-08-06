@@ -1,8 +1,14 @@
 @tool
 extends GameFeature
+## Endpoint that validates and routes normalized control intents.
+##
+## Verifies channel ownership and gameplay blocking tags, then delegates movement,
+## ability, or interaction work to optional capability providers.
 class_name GameControlEndpoint
 
+## Emitted after an intent is successfully routed.
 signal intent_accepted(intent: GameControlIntent, result: GameCommandResult)
+## Emitted when validation or delegated execution rejects an intent.
 signal intent_rejected(intent: GameControlIntent, result: GameCommandResult)
 
 # ======== PRIVATE VAR ======
@@ -13,6 +19,7 @@ var _interaction_source: GameInteractionSource = null
 var _continuous_intents: Dictionary = {}
 
 # ======= OVERRIDE =======
+## Configures endpoint capabilities and local executor dependencies.
 func _init() -> void:
 	feature_id = &"object.control_endpoint"
 	if provided_capabilities.is_empty():
@@ -31,6 +38,7 @@ func _init() -> void:
 			dependency.required = false
 			optional_dependencies.append(dependency)
 
+## Resolves the arbiter and optional executor capabilities.
 func on_game_initialize() -> GameCommandResult:
 	_arbiter = get_dependency(GameCapabilityIds.CONTROL_ARBITER) as GameControlArbiter
 	_motor = get_dependency(GameCapabilityIds.MOVEMENT_MOTOR) as GameMovementMotor
@@ -39,6 +47,7 @@ func on_game_initialize() -> GameCommandResult:
 	if _arbiter == null: return GameCommandResult.configuration_error(&"missing_control_arbiter", "Control endpoint requires a control arbiter.")
 	return GameCommandResult.success_changed(&"control_endpoint_initialized")
 
+## Clears retained continuous intents and dependency references.
 func on_game_shutdown() -> void:
 	_continuous_intents.clear(); _arbiter = null; _motor = null; _abilities = null; _interaction_source = null
 
@@ -77,10 +86,12 @@ func _route_interaction(intent: GameControlIntent) -> GameCommandResult:
 	return _interaction_source.handle_interaction_intent(intent)
 
 # ====== PUBLIC ========
+## Returns the controlled object's handle from the local context.
 func get_owner_handle() -> GameObjectHandle:
 	var context: GameObjectContext = get_context()
 	return context.get_object_handle() if context != null else null
 
+## Validates ownership and blocking state, then routes one control intent.
 func receive_intent(intent: GameControlIntent) -> GameCommandResult:
 	if intent == null or not intent.is_valid(): return GameCommandResult.configuration_error(&"invalid_control_intent", "Control intent is invalid.")
 	if not _arbiter.owns_channel(intent.get_source_id(), intent.get_channel_id()):
@@ -107,12 +118,15 @@ func receive_intent(intent: GameControlIntent) -> GameCommandResult:
 	else: intent_rejected.emit(intent, result)
 	return result
 
+## Removes retained continuous state for [param channel_id].
+## Movement clearing also sends an explicit stop request to the motor.
 func clear_continuous_intent(channel_id: StringName) -> void:
 	_continuous_intents.erase(channel_id)
 	if channel_id == GameControlChannels.MOVEMENT and _motor != null:
 		var context: GameExecutionContext = get_context().create_root_execution_context(&"control.clear", "Continuous movement cleared")
 		_motor.apply_movement_request(GameMovementRequest.new(GameMovementRequest.Type.STOP, context))
 
+## Returns retained intents and availability of optional executor features.
 func get_debug_snapshot() -> Dictionary:
 	var intents: Dictionary = {}
 	for channel_id: StringName in _continuous_intents.keys(): intents[channel_id] = (_continuous_intents[channel_id] as GameControlIntent).to_dictionary()
