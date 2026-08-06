@@ -1,7 +1,13 @@
 extends Node
+## World service that centralizes gameplay object spawning and despawning.
+##
+## Instantiates PackedScenes, validates their local kernel, initializes object
+## composition, registers stable handles, and applies explicit despawn identity policy.
 class_name GameSpawnService
 
+## Emitted after a spawned object's kernel and handle are ready.
 signal object_spawned(handle: GameObjectHandle)
+## Emitted after a resolved or known object is despawned.
 signal object_despawned(stable_id: StringName, reason: StringName)
 
 # ======== EXPORT =========
@@ -9,6 +15,7 @@ signal object_despawned(stable_id: StringName, reason: StringName)
 @export var object_resolver: GameObjectResolver = null
 
 # ====== PUBLIC ========
+## Instantiates and initializes a gameplay scene, returning its registered handle.
 func spawn(scene_path: String, transform: Transform3D, execution_context: GameExecutionContext, parent: Node = null, stable_id: StringName = &"", region_id: StringName = &"") -> GameCommandResult:
 	if scene_path.is_empty() or execution_context == null:
 		return GameCommandResult.configuration_error(&"invalid_spawn_request", "Spawn request is incomplete.")
@@ -50,6 +57,7 @@ func spawn(scene_path: String, transform: Transform3D, execution_context: GameEx
 	object_spawned.emit(handle)
 	return GameCommandResult.success_changed(&"object_spawned", handle)
 
+## Despawns an object and marks its stable handle unresolved or permanently invalid.
 func despawn(handle: GameObjectHandle, reason: StringName = &"despawned", permanent: bool = false) -> GameCommandResult:
 	if handle == null:
 		return GameCommandResult.invalid_target("Despawn requires handle.")

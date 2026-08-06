@@ -1,7 +1,13 @@
 @tool
 extends GameFeature
+## Feature that converts meter depletion into an explicit death state transition.
+##
+## Adds an owned dead tag, publishes local death/revive events, and prevents
+## duplicate death transitions. Node deletion and presentation reactions remain
+## separate responsibilities.
 class_name GameDeathPolicy
 
+## Emitted once when the watched meter first transitions to the dead state.
 signal died(execution_context: GameExecutionContext)
 
 # ======== EXPORT =========
@@ -16,6 +22,7 @@ var _tags: GameTagContainer = null
 var _meters: GameMeters = null
 
 # ======= OVERRIDE =======
+## Configures the death capability and meter/tag dependencies.
 func _init() -> void:
 	feature_id = &"object.death_policy"
 	if provided_capabilities.is_empty():
@@ -25,12 +32,14 @@ func _init() -> void:
 	if optional_dependencies.is_empty():
 		var tags_dependency := GameCapabilityDependency.new(); tags_dependency.capability_id = GameCapabilityIds.TAGS_MODIFY; tags_dependency.required = false; optional_dependencies.append(tags_dependency)
 
+## Returns editor warnings for missing watched meter or dead tag IDs.
 func _get_configuration_warnings() -> PackedStringArray:
 	var warnings: PackedStringArray = super()
 	if watched_meter_id.is_empty(): warnings.append("GameDeathPolicy requires watched_meter_id.")
 	if dead_tag_id.is_empty(): warnings.append("GameDeathPolicy requires dead_tag_id.")
 	return warnings
 
+## Resolves dependencies and validates the watched meter.
 func on_game_initialize() -> GameCommandResult:
 	_meters = get_dependency(GameCapabilityIds.METERS_QUERY) as GameMeters
 	_tags = get_dependency(GameCapabilityIds.TAGS_MODIFY) as GameTagContainer
@@ -38,11 +47,13 @@ func on_game_initialize() -> GameCommandResult:
 	_is_dead = false
 	return GameCommandResult.success_changed(&"death_policy_initialized")
 
+## Reacts to depletion of the configured meter and enters the dead state once.
 func on_local_event(event: GameLocalEvent) -> void:
 	if event.get_event_type_id() != &"meter_depleted": return
 	if event.get_payload().get("meter_id", &"") != watched_meter_id: return
 	_transition_to_dead(event.get_execution_context())
 
+## Removes the owned dead tag during feature shutdown.
 func on_game_shutdown() -> void:
 	if _dead_tag_handle != null and _tags != null: _tags.remove_tag(_dead_tag_handle, false)
 	_dead_tag_handle = null
@@ -57,7 +68,10 @@ func _transition_to_dead(execution_context: GameExecutionContext) -> void:
 	died.emit(execution_context)
 
 # ====== PUBLIC ========
+## Returns whether the policy is currently in the dead state.
 func is_dead() -> bool: return _is_dead
+## Leaves the dead state when [member revivable] is enabled.
+## Removes only this policy's dead-tag handle and publishes a revive event.
 func revive(execution_context: GameExecutionContext) -> GameCommandResult:
 	if not revivable: return GameCommandResult.rejected_permanent(&"not_revivable", "Death policy does not allow revive.")
 	if not _is_dead: return GameCommandResult.success_unchanged(&"already_alive")

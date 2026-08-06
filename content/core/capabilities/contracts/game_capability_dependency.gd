@@ -1,5 +1,9 @@
 @tool
 extends Resource
+## Describes a capability dependency requested by a [GameFeature].
+##
+## The contract records requiredness, expected cardinality, optional script type checks,
+## lazy resolution, and the policy used when a previously resolved provider is lost.
 class_name GameCapabilityDependency
 
 # ======== EXPORT =========
@@ -11,5 +15,6 @@ class_name GameCapabilityDependency
 @export_enum("Deactivate Feature", "Configuration Error", "Keep Last Reference", "Ignore Optional") var loss_policy: int = GameCapabilityLossPolicy.Type.DEACTIVATE_FEATURE
 
 # ====== PUBLIC ========
+## Returns whether this dependency has a non-empty capability identifier.
 func is_valid() -> bool:
-    return not capability_id.is_empty()
+	return not capability_id.is_empty()

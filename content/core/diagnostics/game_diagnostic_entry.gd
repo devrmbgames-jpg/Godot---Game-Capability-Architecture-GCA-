@@ -1,4 +1,5 @@
 extends RefCounted
+## Immutable structured diagnostic message captured by [GameDiagnosticsSink].
 class_name GameDiagnosticEntry
 
 # ======== PRIVATE VAR ======
@@ -9,19 +10,21 @@ var _context: Dictionary = {}
 var _timestamp_usec: int = 0
 
 # ======= OVERRIDE =======
+## Creates a timestamped diagnostic entry with a defensive copy of [param context].
 func _init(level: int = 0, code: StringName = &"", message: String = "", context: Dictionary = {}) -> void:
-    _level = level
-    _code = code
-    _message = message
-    _context = context.duplicate(true)
-    _timestamp_usec = Time.get_ticks_usec()
+	_level = level
+	_code = code
+	_message = message
+	_context = context.duplicate(true)
+	_timestamp_usec = Time.get_ticks_usec()
 
 # ====== PUBLIC ========
+## Returns a serializable representation of this diagnostic entry.
 func to_dictionary() -> Dictionary:
-    return {
-        "level": _level,
-        "code": _code,
-        "message": _message,
-        "context": _context.duplicate(true),
-        "timestamp_usec": _timestamp_usec,
-    }
+	return {
+		"level": _level,
+		"code": _code,
+		"message": _message,
+		"context": _context.duplicate(true),
+		"timestamp_usec": _timestamp_usec,
+	}

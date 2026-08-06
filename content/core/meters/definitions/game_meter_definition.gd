@@ -1,5 +1,10 @@
 @tool
 extends Resource
+## Immutable definition of a current-value gameplay meter.
+##
+## Configures initialization, maximum resolution, maximum-change behavior,
+## depletion threshold, and persistence hints. Runtime state lives in
+## [GameMeterValue].
 class_name GameMeterDefinition
 
 # ======= ENUMS =========
@@ -20,6 +25,7 @@ enum MaximumChangePolicy { KEEP_CURRENT, KEEP_PERCENTAGE, ADJUST_BY_DELTA, CLAMP
 @export var save_current: bool = true
 
 # ====== PUBLIC ========
+## Returns whether the meter ID and configured maximum source are valid.
 func is_valid() -> bool:
 	if meter_id.is_empty(): return false
 	if maximum_policy == MaximumPolicy.ATTRIBUTE: return not maximum_attribute_id.is_empty()

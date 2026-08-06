@@ -1,7 +1,12 @@
 @tool
 extends RefCounted
+## Builds a deterministic in-memory index of editable GCA definition resources.
+##
+## The index scans a configured content root, groups records by resource class and path,
+## stores validation summaries, and exposes defensive record collections to editor UI code.
 class_name GameDataIndex
 
+## Emitted after a full index rebuild with the number of indexed records.
 signal index_rebuilt(record_count: int)
 
 # ======== PRIVATE VAR ======
@@ -74,6 +79,7 @@ func _sort_records() -> void:
 		_records_by_class[resource_class] = class_records
 
 # ====== PUBLIC ========
+## Clears and rebuilds the index below [param scan_root], returning the record count.
 func rebuild(scan_root: String = "res://content") -> int:
 	_scan_root = scan_root.strip_edges()
 	if _scan_root.is_empty():
@@ -86,9 +92,11 @@ func rebuild(scan_root: String = "res://content") -> int:
 	index_rebuilt.emit(_records.size())
 	return _records.size()
 
+## Returns the currently configured resource scan root.
 func get_scan_root() -> String:
 	return _scan_root
 
+## Returns indexed records, optionally restricted to [param resource_class].
 func get_records(resource_class: StringName = &"") -> Array[Dictionary]:
 	var source: Array = _records if resource_class.is_empty() else _records_by_class.get(resource_class, [])
 	var result: Array[Dictionary] = []
@@ -96,15 +104,19 @@ func get_records(resource_class: StringName = &"") -> Array[Dictionary]:
 		result.append(record)
 	return result
 
+## Returns records indexed under [param resource_class].
 func get_records_for_class(resource_class: StringName) -> Array[Dictionary]:
 	return get_records(resource_class)
 
+## Returns the indexed record for [param path], or an empty dictionary.
 func get_record(path: String) -> Dictionary:
 	return _records_by_path.get(path, {}) as Dictionary
 
+## Returns the total number of indexed resources.
 func get_record_count() -> int:
 	return _records.size()
 
+## Returns indexed resource classes sorted by their editor category title.
 func get_resource_classes() -> Array[StringName]:
 	var result: Array[StringName] = []
 	for resource_class: StringName in _records_by_class.keys():
@@ -118,6 +130,7 @@ func get_resource_classes() -> Array[StringName]:
 	)
 	return result
 
+## Stores validation [param issues] and updates severity counts for the record at [param path].
 func update_record_issues(path: String, issues: Array[Dictionary]) -> void:
 	if not _records_by_path.has(path):
 		return
@@ -134,6 +147,7 @@ func update_record_issues(path: String, issues: Array[Dictionary]) -> void:
 	record["error_count"] = error_count
 	record["warning_count"] = warning_count
 
+## Reloads one indexed resource and refreshes its class, ID, and display metadata.
 func refresh_record(path: String) -> void:
 	if not _records_by_path.has(path):
 		return

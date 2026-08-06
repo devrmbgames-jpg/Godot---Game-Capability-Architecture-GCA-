@@ -1,5 +1,9 @@
 @tool
 extends RefCounted
+## Validates indexed GCA definitions and produces structured editor issues.
+##
+## The validator checks common ID and file rules plus cross-definition references for meters,
+## effects, and abilities, then writes issue summaries back into [GameDataIndex].
 class_name GameDataValidator
 
 # ======= CONSTS =========
@@ -130,6 +134,7 @@ func _validate_string_name_arrays(resource: Resource) -> Array[Dictionary]:
 	return issues
 
 # ====== PUBLIC ========
+## Validates every record in [param index], updates record issue counts, and returns a summary report.
 func validate(index: GameDataIndex) -> Dictionary:
 	var records: Array[Dictionary] = index.get_records()
 	var duplicate_counts: Dictionary = {}
