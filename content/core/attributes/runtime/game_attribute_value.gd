@@ -1,4 +1,8 @@
 extends RefCounted
+## Runtime state and cached calculation for one gameplay attribute.
+##
+## Aggregates valid [GameAttributeModifier] instances with the formula
+## [code](base + add) * (1.0 + increase)[/code], then applies the definition clamp.
 class_name GameAttributeValue
 
 # ======== PRIVATE VAR ======
@@ -13,6 +17,7 @@ var _version: int = 0
 var _modifiers: Dictionary = {}
 
 # ======= OVERRIDE =======
+## Creates runtime state from [param definition] and an optional base override.
 func _init(definition: GameAttributeDefinition, base_override: Variant = null) -> void:
 	_definition = definition
 	_base = definition.default_base if base_override == null else float(base_override)
@@ -42,10 +47,16 @@ func _recalculate() -> void:
 	_version += 1
 
 # ====== PUBLIC ========
+## Returns the immutable definition used by this runtime value.
 func get_definition() -> GameAttributeDefinition: return _definition
+## Returns the current base layer before modifiers.
 func get_base() -> float: return _base
+## Replaces the base layer and invalidates the cached final value.
 func set_base(value: float) -> void: _base = value; _dirty = true
+## Adds or replaces a modifier by its handle and marks the value dirty.
 func add_modifier(modifier: GameAttributeModifier) -> void: _modifiers[modifier.get_handle_id()] = modifier; _dirty = true
+## Removes and invalidates the modifier identified by [param handle_id].
+## Returns [code]true[/code] when a modifier was removed.
 func remove_modifier(handle_id: int) -> bool:
 	if not _modifiers.has(handle_id): return false
 	var modifier: GameAttributeModifier = _modifiers[handle_id]
@@ -53,13 +64,17 @@ func remove_modifier(handle_id: int) -> bool:
 	_modifiers.erase(handle_id)
 	_dirty = true
 	return true
+## Updates one modifier magnitude without changing its handle.
 func update_modifier(handle_id: int, magnitude: float) -> bool:
 	if not _modifiers.has(handle_id): return false
 	(_modifiers[handle_id] as GameAttributeModifier).set_magnitude(magnitude)
 	_dirty = true
 	return true
+## Returns the clamped final value, recalculating only when dirty.
 func get_final() -> float: _recalculate(); return _final
+## Returns the calculation version after ensuring the cache is current.
 func get_version() -> int: _recalculate(); return _version
+## Returns a diagnostic breakdown of base, modifier layers, final value, and sources.
 func get_debug_snapshot() -> Dictionary:
 	_recalculate()
 	var breakdown: Array[Dictionary] = []
