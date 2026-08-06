@@ -1,5 +1,10 @@
 @tool
 extends Resource
+## Immutable definition of a gameplay effect.
+##
+## Describes lifetime, periodic execution, stacking, tag grants, attribute
+## modifiers, meter operations, and persistence hints. Per-target runtime state
+## is stored in [GameActiveEffect].
 class_name GameEffectDefinition
 
 # ======= ENUMS =========
@@ -23,6 +28,7 @@ enum StackingPolicy { REJECT_DUPLICATE, REFRESH_DURATION, ADD_STACK, INDEPENDENT
 @export_multiline var debug_description: String = ""
 
 # ====== PUBLIC ========
+## Returns whether the effect ID, duration, period, and stack limit are valid.
 func is_valid() -> bool:
 	if effect_id.is_empty(): return false
 	if duration_policy == DurationPolicy.DURATION and duration <= 0.0: return false
