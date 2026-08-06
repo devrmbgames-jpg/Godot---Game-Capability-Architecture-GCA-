@@ -1,11 +1,21 @@
 @tool
 extends Node
+## Local composition root for one modular GCA game object.
+##
+## The kernel discovers direct child features, validates and registers capabilities, resolves
+## dependencies, owns lifecycle transitions, routes commands and queries, delivers local events
+## in deterministic order, and processes the guarded execution queue.
 class_name GameObjectKernel
 
+## Emitted after all features finish initialization but before activation.
 signal kernel_initialized(kernel: GameObjectKernel)
+## Emitted whenever the kernel enters the activated state.
 signal kernel_activated(kernel: GameObjectKernel)
+## Emitted when the kernel is deactivated with a reason.
 signal kernel_deactivated(kernel: GameObjectKernel, reason: StringName)
+## Emitted after terminal kernel cleanup.
 signal kernel_shutdown(kernel: GameObjectKernel)
+## Emitted after a local event has been delivered to active features.
 signal local_event_dispatched(event: GameLocalEvent)
 
 # ======= ENUMS =========
@@ -52,17 +62,20 @@ var _pending_local_events: Array[GameLocalEvent] = []
 var _configuration_errors: PackedStringArray = PackedStringArray()
 
 # ======= OVERRIDE =======
+## Automatically initializes the kernel at runtime when [member auto_initialize] is enabled.
 func _ready() -> void:
 	if Engine.is_editor_hint():
 		return
 	if auto_initialize:
 		initialize_kernel()
 
+## Shuts the kernel down before leaving the SceneTree at runtime.
 func _exit_tree() -> void:
 	if Engine.is_editor_hint():
 		return
 	shutdown_kernel()
 
+## Returns static composition warnings visible in the Godot editor.
 func _get_configuration_warnings() -> PackedStringArray:
 	return _collect_static_warnings()
 
@@ -291,7 +304,6 @@ func _rollback_initialization() -> void:
 	_pending_local_events.clear()
 	_pending_feature_mutations.clear()
 
-
 func _record_configuration_error(result: GameCommandResult) -> GameCommandResult:
 	_lifecycle_state = LifecycleState.CONFIGURATION_ERROR
 	_configuration_errors.append(result.get_debug_message())
@@ -322,7 +334,7 @@ func _perform_register_runtime_feature(feature: GameFeature) -> GameCommandResul
 		_is_mutating_features = false
 		return GameCommandResult.configuration_error(
 			&"immutable_infrastructure_feature",
-            "Identity and tag-container composition cannot change after kernel activation."
+			"Identity and tag-container composition cannot change after kernel activation."
 		)
 	if feature.feature_id.is_empty():
 		_is_mutating_features = false
@@ -391,7 +403,7 @@ func _perform_remove_runtime_feature(feature: GameFeature) -> GameCommandResult:
 		_is_mutating_features = false
 		return GameCommandResult.configuration_error(
 			&"immutable_infrastructure_feature",
-            "Identity and tag-container composition cannot change after kernel activation."
+			"Identity and tag-container composition cannot change after kernel activation."
 		)
 
 	var removed_capabilities: Array[StringName] = []
@@ -446,6 +458,7 @@ func _route_query_locally(query: GameQuery) -> GameQueryResult:
 	return GameQueryResult.not_handled(query.get_query_type_id())
 
 # ====== PUBLIC ========
+## Discovers, validates, initializes, and activates the complete local feature composition.
 func initialize_kernel() -> GameCommandResult:
 	if _lifecycle_state == LifecycleState.ACTIVATED:
 		return GameCommandResult.success_unchanged(&"kernel_already_activated")
@@ -534,6 +547,7 @@ func initialize_kernel() -> GameCommandResult:
 	kernel_activated.emit(self)
 	return GameCommandResult.success_changed(&"kernel_activated", self)
 
+## Deactivates features in reverse dependency order without discarding their runtime state.
 func deactivate_kernel(reason: StringName = &"deactivated") -> void:
 	if _lifecycle_state != LifecycleState.ACTIVATED:
 		return
@@ -542,6 +556,7 @@ func deactivate_kernel(reason: StringName = &"deactivated") -> void:
 	_lifecycle_state = LifecycleState.DEACTIVATED
 	kernel_deactivated.emit(self, reason)
 
+## Reactivates every feature after a non-terminal kernel deactivation.
 func reactivate_kernel() -> GameCommandResult:
 	if _lifecycle_state != LifecycleState.DEACTIVATED:
 		return GameCommandResult.configuration_error(&"invalid_kernel_state", "Kernel is not deactivated.")
@@ -553,6 +568,7 @@ func reactivate_kernel() -> GameCommandResult:
 	kernel_activated.emit(self)
 	return GameCommandResult.success_changed(&"kernel_reactivated")
 
+## Performs terminal cleanup in reverse dependency order and invalidates the object handle.
 func shutdown_kernel() -> void:
 	if _lifecycle_state == LifecycleState.SHUTDOWN or _lifecycle_state == LifecycleState.UNINITIALIZED:
 		return
@@ -574,6 +590,7 @@ func shutdown_kernel() -> void:
 	_lifecycle_state = LifecycleState.SHUTDOWN
 	kernel_shutdown.emit(self)
 
+## Routes an addressed [param command] to its target kernel and attaches trace metadata.
 func dispatch_command(command: GameCommand) -> GameCommandResult:
 	if command == null:
 		return GameCommandResult.configuration_error(&"missing_command", "Command is null.")
@@ -591,6 +608,7 @@ func dispatch_command(command: GameCommand) -> GameCommandResult:
 	target_kernel.get_diagnostics().trace_command(command, result)
 	return result
 
+## Routes the side-effect-free [param query] to its resolved target kernel.
 func dispatch_query(query: GameQuery) -> GameQueryResult:
 	if query == null:
 		return GameQueryResult.failure(&"missing_query", "Query is null.")
@@ -603,6 +621,7 @@ func dispatch_query(query: GameQuery) -> GameQueryResult:
 		return GameQueryResult.invalid_target()
 	return target_kernel._route_query_locally(query)
 
+## Registers an already parented runtime feature immediately or queues the mutation for a safe phase.
 func register_runtime_feature(feature: GameFeature) -> GameCommandResult:
 	if _lifecycle_state != LifecycleState.ACTIVATED:
 		return GameCommandResult.configuration_error(&"kernel_not_active", "Runtime feature registration requires an active kernel.")
@@ -611,6 +630,7 @@ func register_runtime_feature(feature: GameFeature) -> GameCommandResult:
 		return GameCommandResult.success_unchanged(&"feature_registration_queued")
 	return _perform_register_runtime_feature(feature)
 
+## Removes a runtime feature immediately or queues the mutation for a safe phase.
 func remove_runtime_feature(feature: GameFeature) -> GameCommandResult:
 	if _lifecycle_state != LifecycleState.ACTIVATED:
 		return GameCommandResult.configuration_error(&"kernel_not_active", "Runtime feature removal requires an active kernel.")
@@ -619,24 +639,29 @@ func remove_runtime_feature(feature: GameFeature) -> GameCommandResult:
 		return GameCommandResult.success_unchanged(&"feature_removal_queued")
 	return _perform_remove_runtime_feature(feature)
 
+## Processes queued gameplay operations and then flushes deferred feature mutations.
 func process_execution_queue(max_operations: int = -1) -> int:
 	var processed: int = _execution_queue.process(max_operations)
 	_flush_pending_feature_mutations()
 	return processed
 
+## Creates a deterministic root execution context owned by this object.
 func create_root_execution_context(cause_type: StringName, debug_label: String = "") -> GameExecutionContext:
 	_operation_id_counter += 1
 	var handle: GameObjectHandle = get_object_handle()
 	var new_seed: int = abs(hash("%s:%s" % [handle.get_runtime_instance_id() if handle != null else 0, _operation_id_counter]))
 	return GameExecutionContext.create_root(_operation_id_counter, handle, cause_type, new_seed, 0, debug_label)
 
+## Creates a child context that preserves the root chain of [param parent].
 func create_child_execution_context(parent: GameExecutionContext, cause_type: StringName, debug_label: String = "") -> GameExecutionContext:
 	_operation_id_counter += 1
 	return parent.create_child(_operation_id_counter, get_object_handle(), cause_type, debug_label)
 
+## Returns the initialized object context.
 func get_object_context() -> GameObjectContext:
 	return _object_context
 
+## Returns the current object handle, including during identity preparation when available.
 func get_object_handle() -> GameObjectHandle:
 	if _object_context != null:
 		return _object_context.get_object_handle()
@@ -644,24 +669,31 @@ func get_object_handle() -> GameObjectHandle:
 		return _identity.get_object_handle()
 	return null
 
+## Returns the current [enum LifecycleState].
 func get_lifecycle_state() -> int:
 	return _lifecycle_state
 
+## Returns the feature registered with [param feature_id], or [code]null[/code].
 func get_feature(feature_id: StringName) -> GameFeature:
 	return _feature_by_id.get(feature_id) as GameFeature
 
+## Returns a shallow copy of currently registered features.
 func get_features() -> Array[GameFeature]:
 	return _features.duplicate()
 
+## Returns the local capability registry.
 func get_capability_registry() -> GameCapabilityRegistry:
 	return _registry
 
+## Returns the local diagnostics sink.
 func get_diagnostics() -> GameDiagnosticsSink:
 	return _diagnostics
 
+## Returns configuration errors accumulated during initialization or runtime composition.
 func get_configuration_errors() -> PackedStringArray:
 	return _configuration_errors
 
+## Returns a complete diagnostic snapshot of lifecycle, features, capabilities, tags, queue, and traces.
 func get_debug_snapshot() -> Dictionary:
 	var feature_snapshot: Array[Dictionary] = []
 	for feature: GameFeature in _initialization_order:
