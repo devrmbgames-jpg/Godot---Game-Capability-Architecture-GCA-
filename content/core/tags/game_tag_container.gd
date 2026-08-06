@@ -1,5 +1,9 @@
 @tool
 extends GameFeature
+## Stores gameplay tags as source-owned runtime contributions for one game object.
+##
+## The container supports exact and hierarchical queries, multiple simultaneous sources,
+## persistent contributions, catalog validation, and safe removal through handles.
 class_name GameTagContainer
 
 # ======== EXPORT =========
@@ -13,6 +17,7 @@ var _handles_by_id: Dictionary = {}
 var _handle_counter: int = 0
 
 # ======= OVERRIDE =======
+## Configures the tag query and modification capabilities.
 func _init() -> void:
 	if feature_id.is_empty():
 		feature_id = &"object.tags"
@@ -25,6 +30,7 @@ func _init() -> void:
 		modify_spec.cardinality = GameCapabilityCardinality.Type.EXCLUSIVE
 		provided_capabilities = [query_spec, modify_spec]
 
+## Returns editor warnings for invalid catalogs, empty tags, and unknown permanent tags.
 func _get_configuration_warnings() -> PackedStringArray:
 	var warnings: PackedStringArray = super()
 	if tag_catalog != null:
@@ -60,6 +66,7 @@ func _emit_tag_event(event_type_id: StringName, handle: GameTagSourceHandle) -> 
 	publish_local_event(event)
 
 # ====== PUBLIC ========
+## Initializes runtime storage and creates persistent handles for configured permanent tags.
 func on_game_initialize() -> GameCommandResult:
 	_sources_by_tag.clear()
 	_handles_by_id.clear()
@@ -70,12 +77,14 @@ func on_game_initialize() -> GameCommandResult:
 			return GameCommandResult.configuration_error(&"invalid_permanent_tag", "Permanent tag '%s' is invalid." % tag_id)
 	return GameCommandResult.success_changed(&"tags_initialized")
 
+## Invalidates every tag handle and clears runtime storage.
 func on_game_shutdown() -> void:
 	for handle: GameTagSourceHandle in _handles_by_id.values():
 		handle.invalidate()
 	_sources_by_tag.clear()
 	_handles_by_id.clear()
 
+## Adds one source contribution for [param tag_id] and returns its ownership handle.
 func add_tag(tag_id: StringName, source_id: StringName, persistent: bool = false, emit_event: bool = true) -> GameTagSourceHandle:
 	if tag_id.is_empty() or source_id.is_empty():
 		return null
@@ -91,6 +100,7 @@ func add_tag(tag_id: StringName, source_id: StringName, persistent: bool = false
 		_emit_tag_event(&"tag_added", handle)
 	return handle
 
+## Removes the source contribution represented by [param handle].
 func remove_tag(handle: GameTagSourceHandle, emit_event: bool = true) -> bool:
 	if handle == null or not handle.is_valid():
 		return false
@@ -110,9 +120,11 @@ func remove_tag(handle: GameTagSourceHandle, emit_event: bool = true) -> bool:
 		_emit_tag_event(&"tag_removed", handle)
 	return removed
 
+## Returns whether at least one valid source owns the exact [param tag_id].
 func has_exact_tag(tag_id: StringName) -> bool:
 	return _sources_by_tag.has(tag_id) and not (_sources_by_tag[tag_id] as Dictionary).is_empty()
 
+## Returns whether [param parent_tag_id] or any descendant tag is present.
 func has_tag_or_child(parent_tag_id: StringName) -> bool:
 	if has_exact_tag(parent_tag_id):
 		return true
@@ -122,6 +134,7 @@ func has_tag_or_child(parent_tag_id: StringName) -> bool:
 			return true
 	return false
 
+## Returns all valid source handles currently contributing [param tag_id].
 func get_source_handles(tag_id: StringName) -> Array[GameTagSourceHandle]:
 	var result: Array[GameTagSourceHandle] = []
 	if not _sources_by_tag.has(tag_id):
@@ -131,6 +144,7 @@ func get_source_handles(tag_id: StringName) -> Array[GameTagSourceHandle]:
 			result.append(handle)
 	return result
 
+## Returns tags and their source ownership records in deterministic order.
 func get_debug_snapshot() -> Dictionary:
 	var snapshot: Dictionary = {}
 	var tag_ids: Array = _sources_by_tag.keys()
