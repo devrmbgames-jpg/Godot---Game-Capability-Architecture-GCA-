@@ -1,5 +1,9 @@
 @tool
 extends GameFeature
+## Owns the stable identity and canonical runtime handle of one GCA game object.
+##
+## Placed persistent objects should receive stable IDs in the editor. Runtime-generated IDs
+## are available only when explicitly enabled and are not based on a mutable NodePath.
 class_name GameObjectIdentity
 
 # ======== EXPORT =========
@@ -13,6 +17,7 @@ class_name GameObjectIdentity
 var _object_handle: GameObjectHandle = null
 
 # ======= OVERRIDE =======
+## Configures the feature ID and exclusive object identity capability.
 func _init() -> void:
 	if feature_id.is_empty():
 		feature_id = &"object.identity"
@@ -22,6 +27,7 @@ func _init() -> void:
 		spec.cardinality = GameCapabilityCardinality.Type.EXCLUSIVE
 		provided_capabilities = [spec]
 
+## Returns editor warnings for missing or duplicate stable IDs.
 func _get_configuration_warnings() -> PackedStringArray:
 	var warnings: PackedStringArray = super()
 	if stable_id.is_empty() and not allow_runtime_generated_id:
@@ -48,6 +54,7 @@ func _has_duplicate_stable_id_in_owned_scene() -> bool:
 	return false
 
 # ====== PUBLIC ========
+## Validates or generates the stable ID and resolves a new handle to [param object_root] and [param kernel].
 func prepare_identity(object_root: Node, kernel: GameObjectKernel) -> GameCommandResult:
 	if stable_id.is_empty():
 		if not allow_runtime_generated_id:
@@ -57,13 +64,16 @@ func prepare_identity(object_root: Node, kernel: GameObjectKernel) -> GameComman
 	_object_handle.resolve(object_root, kernel)
 	return GameCommandResult.success_changed(&"identity_prepared", _object_handle)
 
+## Returns the prepared object handle, or [code]null[/code] before preparation.
 func get_object_handle() -> GameObjectHandle:
 	return _object_handle
 
+## Permanently invalidates the current runtime handle when present.
 func invalidate_handle() -> void:
 	if _object_handle != null:
 		_object_handle.invalidate()
 
+## Generates and stores a scene-unique stable ID using [param prefix].
 func generate_stable_id(prefix: String = "object") -> StringName:
 	var generated: String = "%s.%s" % [prefix, Resource.generate_scene_unique_id()]
 	stable_id = StringName(generated)
