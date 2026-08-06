@@ -1,5 +1,9 @@
 @tool
 extends Node
+## Scene-local composition root for world service ports.
+##
+## Injects only approved world services into an uninitialized object kernel and
+## registers the resulting stable object handle with the resolver.
 class_name GameWorldContext
 
 @export var object_resolver: GameObjectResolver = null
@@ -9,6 +13,7 @@ class_name GameWorldContext
 @export var persistence_coordinator: GamePersistenceCoordinator = null
 @export var region_streaming_service: GameRegionStreamingService = null
 
+## Returns editor warnings for required world services that are not assigned.
 func _get_configuration_warnings() -> PackedStringArray:
 	var warnings := PackedStringArray()
 	if object_resolver == null: warnings.append("GameWorldContext requires GameObjectResolver.")
@@ -18,6 +23,7 @@ func _get_configuration_warnings() -> PackedStringArray:
 	if persistence_coordinator == null: warnings.append("GameWorldContext requires GamePersistenceCoordinator.")
 	return warnings
 
+## Returns the approved world ports keyed by stable [GameWorldPortIds].
 func get_world_ports() -> Dictionary:
 	return {
 		GameWorldPortIds.OBJECT_RESOLVE: object_resolver,
@@ -30,6 +36,7 @@ func get_world_ports() -> Dictionary:
 		GameWorldPortIds.STREAMING_REGION: region_streaming_service,
 	}
 
+## Injects world ports, initializes [param kernel], and registers its object handle.
 func bind_kernel(kernel: GameObjectKernel) -> GameCommandResult:
 	if kernel == null: return GameCommandResult.invalid_target("World context cannot bind a null kernel.")
 	if object_resolver == null: return GameCommandResult.configuration_error(&"missing_object_resolver", "World context requires resolver.")
