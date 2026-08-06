@@ -1,5 +1,9 @@
 @tool
 extends GameMovementMotor
+## CharacterBody3D adapter for normalized GCA movement requests.
+##
+## Owns low-level velocity, gravity, facing, and move-to behavior while reading an
+## optional movement-speed attribute. It never reads input or activates abilities.
 class_name GameCharacterMotor
 
 # ======== EXPORT =========
@@ -18,6 +22,7 @@ var _move_tolerance: float = 0.1
 var _has_move_target: bool = false
 
 # ======= OVERRIDE =======
+## Configures the concrete motor feature and optional attribute dependency.
 func _init() -> void:
 	super()
 	feature_id = &"object.character_motor"
@@ -27,6 +32,7 @@ func _init() -> void:
 		dependency.required = false
 		optional_dependencies.append(dependency)
 
+## Validates a CharacterBody3D object root and enables physics processing.
 func on_game_initialize() -> GameCommandResult:
 	var root: Node = get_context().get_object_root()
 	if not root is CharacterBody3D: return GameCommandResult.configuration_error(&"invalid_character_motor_root", "GameCharacterMotor requires CharacterBody3D object root.")
@@ -35,15 +41,18 @@ func on_game_initialize() -> GameCommandResult:
 	set_physics_process(true)
 	return GameCommandResult.success_changed(&"character_motor_initialized")
 
+## Clears movement ownership and velocity when gameplay deactivates.
 func on_game_deactivate(reason: StringName) -> void:
 	_desired_direction = Vector3.ZERO; _desired_magnitude = 0.0; _has_move_target = false
 	if _body != null: _body.velocity = Vector3.ZERO
 	movement_stopped.emit(reason)
 
+## Disables physics processing and releases runtime dependencies.
 func on_game_shutdown() -> void:
 	set_physics_process(false)
 	_body = null; _attributes = null
 
+## Applies desired movement, gravity, facing, and CharacterBody3D motion each physics frame.
 func _physics_process(delta: float) -> void:
 	if _body == null or not is_enabled(): return
 	if _has_move_target:
@@ -63,6 +72,7 @@ func _physics_process(delta: float) -> void:
 		_body.rotation.y = lerp_angle(_body.rotation.y, target_yaw, clampf(turn_speed * delta, 0.0, 1.0))
 	_body.move_and_slide()
 
+## Applies supported desired-movement, stop, move-to, and impulse requests.
 func on_apply_movement_request(request: GameMovementRequest) -> GameCommandResult:
 	match request.get_type():
 		GameMovementRequest.Type.SET_DESIRED_MOVEMENT:
@@ -78,6 +88,7 @@ func on_apply_movement_request(request: GameMovementRequest) -> GameCommandResul
 			return GameCommandResult.rejected_permanent(&"unsupported_movement_request", "Character motor does not support this request type.")
 	return GameCommandResult.success_changed(&"movement_request_applied")
 
+## Extends base motor diagnostics with velocity and move-target state.
 func get_debug_snapshot() -> Dictionary:
 	var snapshot: Dictionary = super()
 	snapshot["velocity"] = _body.velocity if _body != null else Vector3.ZERO
