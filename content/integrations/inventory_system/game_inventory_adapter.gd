@@ -1,7 +1,13 @@
 extends Node
+## Reconciles Inventory System equipment state with GCA-owned effects and ability grants.
+##
+## Each stable item instance owns a binding record containing only handles created for that
+## item. Equip is idempotent, and unequip removes no unrelated gameplay state.
 class_name GameInventoryAdapter
 
+## Emitted after all gameplay effects and grants for an item have been committed.
 signal equipment_gameplay_applied(item_instance_id: StringName)
+## Emitted after all gameplay state owned by an item has been removed.
 signal equipment_gameplay_removed(item_instance_id: StringName)
 
 # ======== EXPORT =========
@@ -28,6 +34,10 @@ func _rollback_binding(binding: Dictionary, context: GameObjectContext) -> void:
 			abilities.revoke_grant(handle_id, &"equipment_rollback")
 
 # ====== PUBLIC ========
+## Applies equipment-owned effects and grants for the stable item instance [param item_id].
+##
+## The operation is idempotent. If any required mutation fails, previously committed
+## mutations from this call are rolled back before the failure result is returned.
 func apply_equipment(item_id: StringName, effects_to_apply: Array[GameEffectDefinition], abilities_to_grant: Array[GameAbilityDefinition]) -> GameCommandResult:
 	if item_id.is_empty():
 		return GameCommandResult.configuration_error(&"missing_item_instance_id", "Stable item ID required.")
@@ -66,6 +76,7 @@ func apply_equipment(item_id: StringName, effects_to_apply: Array[GameEffectDefi
 	equipment_gameplay_applied.emit(item_id)
 	return GameCommandResult.success_changed(&"equipment_applied", binding)
 
+## Removes only effects and grants recorded for [param item_id].
 func remove_equipment(item_id: StringName) -> GameCommandResult:
 	if not _bindings.has(item_id):
 		return GameCommandResult.success_unchanged(&"equipment_not_found")
@@ -78,6 +89,7 @@ func remove_equipment(item_id: StringName) -> GameCommandResult:
 	equipment_gameplay_removed.emit(item_id)
 	return GameCommandResult.success_changed(&"equipment_removed")
 
+## Removes bindings for items absent from [param expected_item_ids] and returns a reconciliation report.
 func reconcile(expected_item_ids: Array[StringName]) -> Dictionary:
 	var removed: Array[StringName] = []
 	for item_id: StringName in _bindings.keys():
@@ -86,5 +98,6 @@ func reconcile(expected_item_ids: Array[StringName]) -> Dictionary:
 			removed.append(item_id)
 	return {"active": _bindings.keys(), "removed": removed}
 
+## Returns a deep copy of current item-to-gameplay handle bindings.
 func get_bindings_snapshot() -> Dictionary:
 	return _bindings.duplicate(true)
