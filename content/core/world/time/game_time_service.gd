@@ -1,6 +1,11 @@
 extends Node
+## World-local source of deterministic gameplay simulation time.
+##
+## Separates scaled gameplay time from frame time, supports manual advancement for
+## tests, and exposes simulation step/time for schedulers and persistence.
 class_name GameTimeService
 
+## Emitted after simulation time advances successfully.
 signal simulation_advanced(delta: float, simulation_time: float, simulation_step: int)
 
 # ======== EXPORT =========
@@ -13,11 +18,13 @@ var _simulation_time: float = 0.0
 var _simulation_step: int = 0
 
 # ======= OVERRIDE =======
+## Automatically advances scaled simulation time when enabled and not paused.
 func _process(delta: float) -> void:
 	if auto_advance and not paused:
 		advance(delta)
 
 # ====== PUBLIC ========
+## Advances simulation by scaled [param delta] and returns the applied amount.
 func advance(delta: float) -> float:
 	if delta <= 0.0 or paused:
 		return 0.0
@@ -27,15 +34,19 @@ func advance(delta: float) -> float:
 	simulation_advanced.emit(scaled_delta, _simulation_time, _simulation_step)
 	return scaled_delta
 
+## Returns accumulated gameplay simulation time.
 func get_simulation_time() -> float:
 	return _simulation_time
 
+## Returns the monotonically increasing simulation step.
 func get_simulation_step() -> int:
 	return _simulation_step
 
+## Restores non-negative simulation time and step from persisted state.
 func restore_clock(simulation_time: float, simulation_step: int) -> void:
 	_simulation_time = maxf(0.0, simulation_time)
 	_simulation_step = maxi(0, simulation_step)
 
+## Returns clock, scale, and pause diagnostics.
 func get_debug_snapshot() -> Dictionary:
 	return {"simulation_time": _simulation_time, "simulation_step": _simulation_step, "time_scale": time_scale, "paused": paused}
