@@ -1,0 +1,71 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://content/gameplay/example/testing/game_gca_test_runner_example.gd" id="1_runner"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_floor"]
+size = Vector2(30, 30)
+
+[sub_resource type="StandardMaterial3D" id="Material_floor"]
+albedo_color = Color(0.08, 0.08, 0.1, 1)
+roughness = 1.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_panel"]
+bg_color = Color(0.04, 0.05, 0.08, 0.94)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+content_margin_left = 16.0
+content_margin_top = 16.0
+content_margin_right = 16.0
+content_margin_bottom = 16.0
+
+[node name="GCATestSuiteExample" type="Node3D" node_paths=PackedStringArray("fixtures_root", "results_container", "summary_label", "run_button")]
+script = ExtResource("1_runner")
+fixtures_root = NodePath("Fixtures")
+results_container = NodePath("TestUI/Panel/Layout/Scroll/Results")
+summary_label = NodePath("TestUI/Panel/Layout/Summary")
+run_button = NodePath("TestUI/Panel/Layout/RunButton")
+auto_run = true
+
+[node name="Floor" type="MeshInstance3D" parent="."]
+mesh = SubResource("PlaneMesh_floor")
+material_override = SubResource("Material_floor")
+
+[node name="Fixtures" type="Node3D" parent="."]
+visible = false
+
+[node name="TestUI" type="CanvasLayer" parent="."]
+
+[node name="Panel" type="PanelContainer" parent="TestUI"]
+offset_left = 24.0
+offset_top = 24.0
+offset_right = 760.0
+offset_bottom = 700.0
+theme_override_styles/panel = SubResource("StyleBox_panel")
+
+[node name="Layout" type="VBoxContainer" parent="TestUI/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="TestUI/Panel/Layout"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "GCA Example Test Suite"
+
+[node name="Summary" type="Label" parent="TestUI/Panel/Layout"]
+layout_mode = 2
+text = "GCA TESTS: NOT RUN"
+
+[node name="RunButton" type="Button" parent="TestUI/Panel/Layout"]
+layout_mode = 2
+text = "Run All GCA Tests"
+
+[node name="Scroll" type="ScrollContainer" parent="TestUI/Panel/Layout"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Results" type="VBoxContainer" parent="TestUI/Panel/Layout/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
