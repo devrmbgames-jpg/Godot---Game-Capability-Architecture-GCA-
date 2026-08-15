@@ -1,9 +1,0 @@
-~ start
-Guide: This dialogue uses the GCA Dialogue adapter.
-if can_receive_reward()
-    - Accept the movement ability reward
-        do grant_reward()
-        Guide: The ability grant was sent through GameDialogueAdapter.
-else
-    Guide: You already received this reward.
-=> END
