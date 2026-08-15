@@ -76,10 +76,7 @@ func _physics_process(_delta: float) -> void:
 				&"ability.activate",
 				GameControlChannels.ABILITIES,
 				context,
-				{
-					"slot_id": binding.slot_id,
-					"activation_payload": binding.activation_payload.duplicate(true),
-				}
+				{"slot_id": binding.slot_id}
 			)
 
 	if owns_channel(GameControlChannels.INTERACTION) and Input.is_action_just_pressed(
