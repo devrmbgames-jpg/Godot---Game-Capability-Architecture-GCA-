@@ -16,7 +16,7 @@
 
 Здесь собран именно **game-specific glue-код**.
 
-> Важно: GCA не обязан знать, что такое «бочка», «мина» или «рывок игрока». Эти скрипты используют публичные GCA-контракты и держат конкретное поведение на уровне игры.
+> Важно: GCA не обязан знать, что такое «бочка», «мина», «дверь» или «рывок игрока». Скрипты игрового уровня используют публичные GCA-контракты. В частности, interaction не должен проверять тип цели или искать у неё методы `activate/open/close`: инициатор активирует универсальную interaction ability, а цель сама резолвит семантическое намерение в свою локальную ability.
 
 ## Что здесь подтверждено текущим GCA API
 
@@ -34,6 +34,11 @@ GameAbilities.activate(GameAbilityActivationRequest)
 GameAbilityOperation.execute(GameAbilities, GameAbilityExecution)
 GameAbilityExecution.get_request()
 GameAbilityExecution.get_execution_context()
+
+GameInteractionAbilityOperation
+GameInteractionReaction
+GameInteractionRequest
+GameInteractionTarget
 
 GameTargetingService.query_sphere(...)
 GameDamageRequest.new(...)
@@ -179,6 +184,8 @@ res://content/gameplay/simple_scene/player/game_player_simple.gd
 ```
 
 Минимальный dodge ниже сделан как короткое collision-aware перемещение через `move_and_collide()`. Это **учебный fallback**, чтобы файл был самодостаточным. Production-вариант из основного tutorial должен временно preempt movement channel через control layer и затем обязательно вернуть владение.
+
+Локальное тиканье ability/effect/queue здесь оставлено намеренно. Владелец подсцены сам контролирует scheduler advancement, что удобно для профилирования и не заставляет весь проект использовать один глобальный runtime driver.
 
 ```gdscript
 extends CharacterBody3D
@@ -365,6 +372,8 @@ func mark_dead() -> void:
 ```
 
 `mark_dead()` — явная точка, к которой подключается ваш death bridge/policy. Не проверяйте health каждый physics frame.
+
+> `interact` намеренно отсутствует в `_unhandled_input()`: production interaction подключается как обычный `GameAbilityInputBinding` (`interact → slot.interaction`) и активирует универсальную `simple.ability.player.interact` через control/loadout pipeline.
 
 ---
 
@@ -840,7 +849,23 @@ Cooldown ability должен ограничивать частоту `_activate
 
 ---
 
-# 7. `game_door_simple.gd`
+# 7. Дверь: target-owned abilities вместо command dispatcher
+
+Главное правило этого примера:
+
+```text
+Character / NPC / AI
+→ ability.interact
+→ semantic interaction request
+→ Door.GameInteractionTarget
+→ Door reaction
+→ Door.GameAbilities
+→ ability.door.open / ability.door.close
+```
+
+Ни `GamePlayerInputSource`, ни `GameInteractionSource`, ни другой внешний код не проверяет `GameDoorSimple`, не вызывает `has_method()` и не знает методов двери.
+
+## 7.1. `game_door_simple.gd`
 
 Путь:
 
@@ -855,92 +880,205 @@ class_name GameDoorSimple
 signal door_opened()
 signal door_closed()
 
+# ======= CONSTS =========
+const OPEN_TAG: StringName = &"state.open"
+const STATE_SOURCE_ID: StringName = &"simple.door.state"
+
 # ======== EXPORT =========
-@export var kernel: GameObjectKernel = null
 @export var hinge: Node3D = null
-@export var interaction_target: GameInteractionTarget = null
+@export var tags: GameTagContainer = null
 @export_range(0.0, 170.0, 1.0) var open_angle_degrees: float = 95.0
 
 # ======== PRIVATE VAR ======
 var _is_open: bool = false
+var _open_tag_handle: GameTagSourceHandle = null
 
 # ======= OVERRIDE =======
 func _ready() -> void:
 	_refresh_visual()
-	_refresh_offers()
 
 # ====== HELPERS ========
 func _refresh_visual() -> void:
 	if hinge != null:
 		hinge.rotation_degrees.y = open_angle_degrees if _is_open else 0.0
 
-func _refresh_offers() -> void:
-	if interaction_target == null or kernel == null:
+func _add_open_tag() -> bool:
+	if tags == null:
+		return false
+	if _open_tag_handle != null and _open_tag_handle.is_valid():
+		return true
+	_open_tag_handle = tags.add_tag(OPEN_TAG, STATE_SOURCE_ID)
+	return _open_tag_handle != null
+
+func _remove_open_tag() -> void:
+	if tags == null or _open_tag_handle == null:
 		return
-	if kernel.get_object_context() == null:
-		return
-
-	var target_handle: GameObjectHandle = (
-		kernel.get_object_context().get_object_handle()
-	)
-	var offers: Array[GameInteractionOffer] = []
-
-	if _is_open:
-		var close_offer := GameInteractionOffer.new(
-			&"simple.door.close",
-			&"verb.close",
-			target_handle
-		)
-		close_offer.set_command_id(&"simple.command.door.close")
-		close_offer.set_priority(50)
-		offers.append(close_offer)
-	else:
-		var open_offer := GameInteractionOffer.new(
-			&"simple.door.open",
-			&"verb.open",
-			target_handle
-		)
-		open_offer.set_command_id(&"simple.command.door.open")
-		open_offer.set_priority(50)
-		offers.append(open_offer)
-
-	interaction_target.offer_templates = offers
+	tags.remove_tag(_open_tag_handle)
+	_open_tag_handle = null
 
 # ====== PUBLIC ========
-func execute_door_command(command_id: StringName) -> GameCommandResult:
-	match command_id:
-		&"simple.command.door.open":
-			return open_door()
-		&"simple.command.door.close":
-			return close_door()
-		_:
-			return GameCommandResult.configuration_error(
-				&"unknown_door_command",
-				"Unknown door command."
-			)
+## Target-local state API. Interaction systems never call this method directly;
+## only door-owned ability operations do.
+func set_open(value: bool) -> GameCommandResult:
+	if value == _is_open:
+		return GameCommandResult.success_unchanged(
+			&"door_already_open" if value else &"door_already_closed"
+		)
 
-func open_door() -> GameCommandResult:
+	if value and not _add_open_tag():
+		return GameCommandResult.configuration_error(
+			&"door_open_tag_failed",
+			"Door requires gameplay tag 'state.open' in its tag catalog."
+		)
+	if not value:
+		_remove_open_tag()
+
+	_is_open = value
+	_refresh_visual()
 	if _is_open:
-		return GameCommandResult.success_unchanged(&"door_already_open")
+		door_opened.emit()
+		return GameCommandResult.success_changed(&"door_opened")
 
-	_is_open = true
-	_refresh_visual()
-	_refresh_offers()
-	door_opened.emit()
-	return GameCommandResult.success_changed(&"door_opened")
-
-func close_door() -> GameCommandResult:
-	if not _is_open:
-		return GameCommandResult.success_unchanged(&"door_already_closed")
-
-	_is_open = false
-	_refresh_visual()
-	_refresh_offers()
 	door_closed.emit()
 	return GameCommandResult.success_changed(&"door_closed")
+
+func is_open() -> bool:
+	return _is_open
 ```
 
-Это сознательно простой вариант без Tween. Сначала проверьте interaction pipeline, затем замените `_refresh_visual()` на AnimationPlayer/Tween, не меняя GCA offer contract.
+Здесь есть `set_open()`, но это **не interaction dispatcher** и не публичный protocol для внешнего мира. Это локальная реализация состояния конкретной двери. Generic interaction code никогда не знает об этом методе.
+
+## 7.2. `game_door_set_open_operation_simple.gd`
+
+Путь:
+
+```text
+res://content/gameplay/simple_scene/door/game_door_set_open_operation_simple.gd
+```
+
+```gdscript
+@tool
+extends GameAbilityOperation
+class_name GameDoorSetOpenOperationSimple
+
+# ======== EXPORT =========
+@export var open: bool = true
+
+# ====== PUBLIC ========
+func execute(
+	_abilities: GameAbilities,
+	execution: GameAbilityExecution
+) -> GameCommandResult:
+	if execution == null or execution.get_request() == null:
+		return GameCommandResult.configuration_error(
+			&"door_execution_missing",
+			"Door ability execution is incomplete."
+		)
+
+	var owner_handle: GameObjectHandle = (
+		execution.get_request().get_owner_handle()
+	)
+	if owner_handle == null or not owner_handle.is_resolved():
+		return GameCommandResult.invalid_target(
+			"Door ability owner is unresolved."
+		)
+
+	var door: GameDoorSimple = owner_handle.get_root() as GameDoorSimple
+	if door == null:
+		return GameCommandResult.invalid_target(
+			"Door ability owner root does not provide GameDoorSimple state."
+		)
+
+	return door.set_open(open)
+```
+
+Это game-specific operation **локальной door ability**. Тип `GameDoorSimple` известен только реализации самой двери. Interaction framework и инициатор взаимодействия его не знают.
+
+## 7.3. Door abilities
+
+Создайте две `GameAbilityDefinition`:
+
+```text
+simple.ability.door.open
+    blocked_owner_tags = [state.open]
+    operations:
+        GameDoorSetOpenOperationSimple(open = true)
+
+simple.ability.door.close
+    required_owner_tags = [state.open]
+    operations:
+        GameDoorSetOpenOperationSimple(open = false)
+```
+
+Добавьте их в `Door/GameObjectKernel/GameAbilities.initial_abilities`.
+
+Обязательно добавьте `state.open` в `GameTagCatalog`, назначенный двери. Именно ability requirements, а не `_refresh_offers()`, определяют текущее состояние доступности `open/close`.
+
+## 7.4. Door reactions
+
+В `GameInteractionTarget.reactions` назначьте два `GameInteractionReaction`:
+
+```text
+Open reaction
+    offer_id             = simple.door.open
+    intent_id            = open
+    verb_id              = verb.open
+    ability_id           = simple.ability.door.open
+    priority             = 50
+    default_candidate    = true
+
+Close reaction
+    offer_id             = simple.door.close
+    intent_id            = close
+    verb_id              = verb.close
+    ability_id           = simple.ability.door.close
+    priority             = 50
+    default_candidate    = true
+```
+
+Когда дверь закрыта, `simple.ability.door.close` не проходит `required_owner_tags`, поэтому `query_offers()` публикует только `open`. После успешного открытия появляется `state.open`, `open` становится недоступен, а `close` — доступен.
+
+Никакого ручного:
+
+```text
+_refresh_offers()
+execute_door_command()
+if target is Door
+has_method("open")
+```
+
+не требуется.
+
+## 7.5. Обычное и направленное взаимодействие
+
+У Player/NPC создайте универсальную ability:
+
+```text
+simple.ability.player.interact
+└── GameInteractionAbilityOperation
+```
+
+Обычная кнопка interaction активирует её без semantic intent:
+
+```text
+interact
+→ slot.interaction
+→ simple.ability.player.interact
+→ focused target
+→ default currently available reaction
+```
+
+Для закрытой двери получится `open`, для открытой — `close`.
+
+AI/cutscene может активировать **ту же ability**, но передать намерение:
+
+```gdscript
+request.set_activation_payload({
+	GameInteractionRequest.ACTIVATION_INTENT_KEY: &"open",
+})
+```
+
+Тогда `GameInteractionTarget` рассматривает только реакции `intent_id == open`. Если дверь уже открыта или открывается и `door.open` недоступна по requirements/concurrency, запрос получит rejection от `door.open`; он **не превратится в close**.
 
 ---
 
@@ -1287,7 +1425,10 @@ explosion hit
 simple.ability.player.attack
 simple.ability.player.dodge
 simple.ability.player.place_mine
+simple.ability.player.interact
 simple.ability.monster.attack
+simple.ability.door.open
+simple.ability.door.close
 ```
 
 Назначьте operations:
@@ -1305,11 +1446,24 @@ Player Dodge
 Player Place Mine
 └── GamePlaceMineOperationSimple
 
+Player Interact
+└── GameInteractionAbilityOperation
+
 Monster Attack
 └── GameAttackOperationSimple
     attack_radius = 1.8
     attack_damage = 15
     required_tags = [faction.player]
+
+Door Open
+├── blocked_owner_tags = [state.open]
+└── GameDoorSetOpenOperationSimple
+    open = true
+
+Door Close
+├── required_owner_tags = [state.open]
+└── GameDoorSetOpenOperationSimple
+    open = false
 ```
 
 Cooldown задавайте в `GameAbilityDefinition`, а не собственным timer в Player/Monster glue:
@@ -1321,6 +1475,8 @@ place mine     = 2.0 s
 monster attack = 1.0 s
 ```
 
+Для двери добавьте `state.open` в назначенный `GameTagCatalog`.
+
 ---
 
 # 11. Что подключить вручную в сценах
@@ -1328,24 +1484,34 @@ monster attack = 1.0 s
 ## Player
 
 ```text
-GamePlayerSimple.kernel              -> GameObjectKernel
-GamePlayerSimple.control_arbiter     -> GameControlArbiter
-GamePlayerSimple.control_endpoint    -> GameControlEndpoint
-GamePlayerSimple.player_input_source -> GamePlayerInputSource
-GamePlayerSimple.abilities           -> GameAbilities
-GamePlayerSimple.effects             -> GameEffects
+GamePlayerSimple.kernel                -> GameObjectKernel
+GamePlayerSimple.control_arbiter       -> GameControlArbiter
+GamePlayerSimple.control_endpoint      -> GameControlEndpoint
+GamePlayerSimple.player_input_source   -> GamePlayerInputSource
+GamePlayerSimple.abilities             -> GameAbilities
+GamePlayerSimple.effects               -> GameEffects
 GamePlayerSimple.mine_placement_marker -> MinePlacementMarker
 ```
 
-InputMap:
+В `GameAbilities.initial_abilities` добавьте `simple.ability.player.interact`.
+
+В `GameAbilityLoadout` добавьте логический interaction slot, а в `GamePlayerInputSource.ability_input_bindings`:
+
+```text
+input_action = interact
+slot_id      = slot.interaction
+```
+
+То есть `GamePlayerInputSource` не содержит отдельного знания о двери и не вызывает interaction напрямую: `interact` — такая же кнопка активации ability slot, как attack/dodge.
+
+InputMap для прототипа:
 
 ```text
 attack     = Mouse1
 dodge      = Space
 place_mine = Q
+interact   = E
 ```
-
-Movement/interact actions настройте согласно `GamePlayerInputSource`.
 
 ## Monster
 
@@ -1359,13 +1525,46 @@ effects            -> GameEffects
 navigation_agent   -> NavigationAgent3D
 ```
 
+NPC/AI, которому тоже нужно взаимодействовать с миром, может иметь тот же `GameInteractionSource` + universal interact ability. Объект также может одновременно иметь `GameInteractionTarget`: source и target не конфликтуют capability registration.
+
 ## Door
 
+Рекомендуемое дерево:
+
 ```text
-kernel              -> GameObjectKernel
-hinge               -> Hinge
-interaction_target  -> GameInteractionTarget
+Door (AnimatableBody3D, GameDoorSimple)
+├── Hinge
+│   ├── MeshInstance3D
+│   └── CollisionShape3D
+└── GameObjectKernel
+    ├── GameObjectIdentity
+    ├── GameTagContainer
+    ├── GameAbilities
+    └── GameInteractionTarget
 ```
+
+Inspector:
+
+```text
+GameDoorSimple.hinge -> Hinge
+GameDoorSimple.tags  -> GameObjectKernel/GameTagContainer
+```
+
+`GameAbilities.initial_abilities`:
+
+```text
+simple.ability.door.open
+simple.ability.door.close
+```
+
+`GameInteractionTarget.reactions`:
+
+```text
+open  -> simple.ability.door.open
+close -> simple.ability.door.close
+```
+
+Никакой `interaction_target` export-ссылки в `GameDoorSimple` больше нет: дверь не вручную переписывает offers.
 
 ## Barrel
 
@@ -1379,13 +1578,11 @@ targeting_service   -> назначает GameSimpleScene
 ```text
 kernel              -> GameObjectKernel
 trigger_area        -> TriggerArea
-tigger_collision    -> TriggerArea/CollisionShape3D
+trigger_collision   -> TriggerArea/CollisionShape3D
 targeting_service   -> назначает GameSimpleScene
 owner_handle        -> назначает GameSimpleScene при spawn
 instigator_handle   -> назначает GameSimpleScene при spawn
 ```
-
-Опечатка в названии Inspector-поля выше недопустима: реальное поле скрипта называется `trigger_collision`.
 
 ---
 
@@ -1402,14 +1599,18 @@ instigator_handle   -> назначает GameSimpleScene при spawn
 6. Attack operation находит Monster через DAMAGE_RECEIVER.
 7. Monster patrol/chase работает через AI control source.
 8. Monster attack damage идёт тем же pipeline.
-9. Door offer меняется open <-> close.
-10. Barrel получает damage и explode() вызывается один раз.
-11. PlaceMine ability создаёт runtime mine.
-12. Mine не armed первые 0.35 s.
-13. body_entered передаёт реального trigger instigator.
-14. Mine explosion находит зарегистрированные DAMAGE_RECEIVER цели.
-15. После этого отдельно подключается Burning через фактический GameEffects API.
-16. Затем подключаются death bridges, presentation и unregister lifecycle.
+9. Interact slot активирует universal interaction ability.
+10. Closed Door query показывает только intent.open.
+11. Default interact на Closed Door активирует door.open.
+12. После state.open query показывает только intent.close.
+13. Explicit intent.open на уже открытой двери не вызывает door.close.
+14. Barrel получает damage и explode() вызывается один раз.
+15. PlaceMine ability создаёт runtime mine.
+16. Mine не armed первые 0.35 s.
+17. body_entered передаёт реального trigger instigator.
+18. Mine explosion находит зарегистрированные DAMAGE_RECEIVER цели.
+19. После этого отдельно подключается Burning через фактический GameEffects API.
+20. Затем подключаются death bridges, presentation и unregister lifecycle.
 ```
 
 Если шаг не работает, не переходите к следующему. Так проще определить, какой именно контракт нарушен.
@@ -1452,6 +1653,8 @@ GameDamageReceiver
 - `.godot/imported`;
 - готовые `.tscn`;
 - готовые `.tres`;
+- target-type dispatchers;
+- `has_method("activate")` interaction wiring;
 - фиктивные GCA API, которых нет в проверенных источниках.
 
 Сцены и data resources собираются вручную по основному [`example_simple_scene.md`](./example_simple_scene.md), а этот файл служит копируемым набором game-specific glue-шаблонов.

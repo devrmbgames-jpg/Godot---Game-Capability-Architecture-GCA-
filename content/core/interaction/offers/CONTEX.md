@@ -1,9 +1,10 @@
 # Context: `content/core/interaction/offers/`
 
 ## Purpose
-Runtime descriptions of currently available interaction actions.
+Runtime semantic interaction descriptions exposed to UI, AI, and control selection.
 
 ## Rules
-- Offers carry target handles, semantic verb/offer IDs, requirements, priority, reservation, and execution data.
-- Treat offers as short-lived snapshots and revalidate them before execution.
-- UI metadata does not own gameplay progress or state.
+- Offers describe `offer_id`, semantic `intent_id`, verb, priority, reservation/hold policy, and metadata.
+- Offers do not own gameplay execution; target-local ability routing belongs to reactions/targets.
+- Offers are runtime views for one concrete target handle.
+- UI/AI may select an exact offer without learning the target's ability implementation.

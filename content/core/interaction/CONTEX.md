@@ -1,10 +1,12 @@
 # Context: `content/core/interaction/`
 
 ## Purpose
-Runtime interaction sources, targets, offers, focus/revalidation, execution routing, and reservations.
+Semantic interaction requests, focus/query, target-local reactions, ability routing, and reservations.
 
 ## Rules
-- Targets expose offers based on current state; selected offers revalidate before execution.
-- Player and AI use the same offer contract.
-- Actual mechanics delegate to abilities or commands, not direct target method calls.
+- Sources express only interaction intent; they never inspect target classes or call target gameplay methods.
+- Targets map semantic intents to their own local abilities through `GameInteractionReaction`.
+- Empty intent means contextual default interaction; explicit intent such as `open` never falls through to another semantic action such as `close`.
+- Runtime offers are derived from side-effect-free ability availability queries.
+- Player and AI use the same request/offer contracts.
 - Reservations have explicit ownership and cleanup.

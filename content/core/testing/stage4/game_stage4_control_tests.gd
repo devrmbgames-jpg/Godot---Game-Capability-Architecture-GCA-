@@ -1,5 +1,5 @@
 extends RefCounted
-## Isolated contract tests for Stage 4 control ownership, intents, ability slots, and interaction offers.
+## Isolated contract tests for Stage 4 control ownership, slots, and semantic interaction data.
 class_name GameStage4ControlTests
 
 # ====== PUBLIC ========
@@ -53,8 +53,8 @@ static func test_control_intent_validation() -> void:
 ## Verifies player input bindings target logical slots instead of concrete ability IDs.
 static func test_ability_input_binding_contract() -> void:
 	var binding := GameAbilityInputBinding.new()
-	binding.input_action = &"ability_primary"
-	binding.slot_id = &"slot.primary"
+	binding.input_action = &"interact"
+	binding.slot_id = &"slot.interaction"
 	assert(binding.is_valid())
 
 ## Verifies runtime slot bindings preserve source, priority, and grant identity.
@@ -72,11 +72,33 @@ static func test_ability_slot_binding_contract() -> void:
 	assert(binding.get_source_id() == &"item.sword.instance_1")
 	assert(binding.get_priority() == 100)
 
-## Verifies that an ability-backed reservable interaction offer satisfies its contract.
-static func test_offer_contract() -> void:
+## Verifies semantic interaction request supports default and explicit-intent activation.
+static func test_interaction_request_contract() -> void:
+	var source := GameObjectHandle.new(&"test.source", 1)
+	var target := GameObjectHandle.new(&"test.target", 1)
+	var context := GameExecutionContext.new()
+	var default_request := GameInteractionRequest.new(source, target, &"", context)
+	assert(default_request.is_valid())
+	assert(default_request.get_intent_id().is_empty())
+	var open_request := GameInteractionRequest.new(source, target, &"open", context)
+	assert(open_request.is_valid())
+	assert(open_request.get_intent_id() == &"open")
+
+## Verifies target-local reactions separate semantic intent from owned ability implementation.
+static func test_interaction_reaction_contract() -> void:
+	var reaction := GameInteractionReaction.new()
+	reaction.offer_id = &"door.open"
+	reaction.intent_id = &"open"
+	reaction.verb_id = &"verb.open"
+	reaction.ability_id = &"ability.door.open"
+	reaction.priority = 50
+	reaction.default_candidate = true
+	assert(reaction.is_valid())
+
 	var handle := GameObjectHandle.new(&"test.target", 1)
-	var offer := GameInteractionOffer.new(&"open", &"verb.open", handle)
-	offer.set_ability_id(&"ability.interaction.open")
-	offer.set_reservation_required(true)
+	var offer: GameInteractionOffer = reaction.build_offer(handle)
+	assert(offer != null)
 	assert(offer.is_valid())
-	assert(offer.requires_reservation())
+	assert(offer.get_intent_id() == &"open")
+	assert(not offer.to_dictionary().has("ability_id"))
+	assert(not offer.to_dictionary().has("command_id"))
