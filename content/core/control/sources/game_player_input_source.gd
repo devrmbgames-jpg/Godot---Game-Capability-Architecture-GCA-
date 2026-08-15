@@ -3,7 +3,8 @@ extends GameControlSource
 ## Control source that converts Godot Input actions into normalized intents.
 ##
 ## Reads configured input actions only when it owns the matching channels and
-## delegates all gameplay execution to [GameControlEndpoint].
+## delegates all gameplay execution to [GameControlEndpoint]. Interaction buttons are
+## normal ability-slot bindings; this source does not own target-specific interaction logic.
 class_name GamePlayerInputSource
 
 # ======== EXPORT =========
@@ -12,7 +13,6 @@ class_name GamePlayerInputSource
 @export var movement_forward_action: StringName = &"move_forward"
 @export var movement_back_action: StringName = &"move_back"
 @export var ability_input_bindings: Array[GameAbilityInputBinding] = []
-@export var interaction_action: StringName = &"interact"
 @export var input_enabled: bool = true
 
 # ======== PRIVATE VAR ======
@@ -27,7 +27,6 @@ func _init() -> void:
 		requested_channels = [
 			GameControlChannels.MOVEMENT,
 			GameControlChannels.ABILITIES,
-			GameControlChannels.INTERACTION,
 		]
 
 ## Returns warnings for incomplete ability action-to-slot mappings.
@@ -35,7 +34,9 @@ func _get_configuration_warnings() -> PackedStringArray:
 	var warnings: PackedStringArray = super()
 	for binding: GameAbilityInputBinding in ability_input_bindings:
 		if binding == null or not binding.is_valid():
-			warnings.append("GamePlayerInputSource contains an invalid ability input binding.")
+			warnings.append(
+				"GamePlayerInputSource contains an invalid ability input binding."
+			)
 	return warnings
 
 ## Samples input during physics updates and submits normalized owned-channel intents.
@@ -78,15 +79,6 @@ func _physics_process(_delta: float) -> void:
 				context,
 				{"slot_id": binding.slot_id}
 			)
-
-	if owns_channel(GameControlChannels.INTERACTION) and Input.is_action_just_pressed(
-		interaction_action
-	):
-		submit_intent(
-			&"interaction.execute",
-			GameControlChannels.INTERACTION,
-			context
-		)
 
 # ====== PUBLIC ========
 ## Sets the callable used to create root execution contexts for input intents.

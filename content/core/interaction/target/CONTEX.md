@@ -1,9 +1,11 @@
 # Context: `content/core/interaction/target/`
 
 ## Purpose
-Feature contract for objects that generate and revalidate runtime interaction offers.
+Feature contract for objects that expose semantic interaction offers and execute target-local reactions.
 
 ## Rules
-- Offers reflect current target state and source context.
-- Targets do not execute controller decisions or UI behavior.
-- Execution routes through configured ability/command contracts.
+- Target reactions map semantic intents to local abilities.
+- Offers reflect current target ability availability and source context.
+- Default interaction selects the highest-priority available default candidate.
+- Explicit intent only considers reactions for that intent and never toggles to another intent.
+- Targets execute their own abilities; controllers/sources do not know target implementation.

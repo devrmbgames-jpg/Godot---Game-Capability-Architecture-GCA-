@@ -6,7 +6,7 @@
 ввод игрока / решение AI
 → GameControl...
 → GameAbilities
-→ Targeting
+→ Interaction / Targeting
 → GameDamageRequest / GameEffects
 → GameMeters
 → смерть / реакция объекта
@@ -15,10 +15,10 @@
 
 После выполнения инструкции получится арена, в которой:
 
-- игрок ходит, атакует, уклоняется и устанавливает мины;
+- игрок ходит, атакует, уклоняется, взаимодействует и устанавливает мины;
 - монстр патрулирует область, замечает игрока, преследует и атакует его;
 - игрок и монстр имеют здоровье и получают урон через единый GCA damage pipeline;
-- дверь открывается и закрывается через interaction API;
+- дверь открывается и закрывается через generic interaction ability и target-owned abilities;
 - бочка получает урон, взрывается и может вызвать цепную реакцию;
 - мина устанавливается игроком, вооружается, может быть уничтожена уроном, взрывается и накладывает `Горение`;
 - все игровые объекты имеют стабильные GCA identity/handles;
@@ -42,6 +42,7 @@
 - `GameAttributes` — вычисляемые атрибуты;
 - `GameMeters` — изменяемые шкалы, например здоровье;
 - `GameAbilities` — выдача и активация способностей;
+- `GameAbilityLoadout` — логические ability slots;
 - `GameEffects` — эффекты и статусы;
 - `GameDamageReceiver` — входная точка получения урона;
 - `GameDamageRequest` — стандартный запрос на нанесение урона;
@@ -51,9 +52,12 @@
 - `GamePlayerInputSource` — источник управления от игрока;
 - `GameMockAIControlSource` — простой источник управления для AI-прототипа;
 - `GameCharacterMotor` — движение персонажа;
-- `GameInteractionSource` — инициатор взаимодействия;
-- `GameInteractionTarget` — объект, предлагающий взаимодействия;
-- `GameInteractionOffer` — описание доступного взаимодействия;
+- `GameInteractionSource` — инициатор semantic interaction requests;
+- `GameInteractionTarget` — объект, принимающий interaction requests;
+- `GameInteractionRequest` — запрос с optional semantic intent;
+- `GameInteractionReaction` — target-local mapping `intent → ability`;
+- `GameInteractionOffer` — semantic описание доступного взаимодействия для UI/AI;
+- `GameInteractionAbilityOperation` — generic operation «взаимодействовать с чем-то»;
 - `GameTargetingService` — выбор GCA-целей по миру;
 - `GameExecutionContext` — цепочка причин/операций;
 - `GamePresentationCueReceiver` — presentation/reaction слой;
@@ -109,7 +113,8 @@ res://content/gameplay/simple_scene/
 │
 ├── door/
 │   ├── prop_door_simple.tscn
-│   └── game_door_simple.gd
+│   ├── game_door_simple.gd
+│   └── game_door_set_open_operation_simple.gd
 │
 ├── barrel/
 │   ├── prop_barrel_simple.tscn
@@ -141,7 +146,7 @@ res://content/gameplay/simple_scene/
 
 # 2. Сначала создаём общие GCA-данные
 
-Не начинайте с персонажа. Сначала создайте набор данных, который затем смогут переиспользовать игрок, монстр, бочка и мина.
+Не начинайте с персонажа. Сначала создайте набор данных, который затем смогут переиспользовать игрок, монстр, дверь, бочка и мина.
 
 ## 2.1. Атрибуты
 
@@ -206,6 +211,7 @@ object.trap.mine
 faction.player
 faction.monster
 
+state.open
 status.burning
 status.invulnerable
 
@@ -216,6 +222,15 @@ damage.fire
 
 Тег сам по себе ничего «магически» не делает. Например, наличие `status.invulnerable` станет неуязвимостью только тогда, когда ваша damage policy/receiver действительно проверяет этот тег и отклоняет урон.
 
+Для двери `state.open` используется обычными ability requirements:
+
+```text
+door.open  blocked_owner_tags  = [state.open]
+door.close required_owner_tags = [state.open]
+```
+
+Так доступность interaction reaction вычисляется Ability System, а не ручным переключением offers.
+
 ## 2.4. Ability definitions
 
 Через Data Studio создайте:
@@ -224,7 +239,10 @@ damage.fire
 simple.ability.player.attack
 simple.ability.player.dodge
 simple.ability.player.place_mine
+simple.ability.player.interact
 simple.ability.monster.attack
+simple.ability.door.open
+simple.ability.door.close
 ```
 
 Для каждой ability definition назначьте соответствующую operation/game-specific реализацию.
@@ -245,13 +263,24 @@ Player Dodge:
 Place Mine:
     cooldown: 2.0 s
 
+Player Interact:
+    operation: GameInteractionAbilityOperation
+
 Monster Attack:
     damage: 15
     range: 1.8 m
     cooldown: 1.0 s
+
+Door Open:
+    blocked_owner_tags = [state.open]
+    operation = GameDoorSetOpenOperationSimple(open = true)
+
+Door Close:
+    required_owner_tags = [state.open]
+    operation = GameDoorSetOpenOperationSimple(open = false)
 ```
 
-Точные поля зависят от вашей operation/definition. Значения выше — параметры прототипа, а не обязательные константы GCA.
+Точные поля game-specific operations зависят от реализации. `required_owner_tags` и `blocked_owner_tags` — поля `GameAbilityDefinition`.
 
 ## 2.5. Эффект «Горение»
 
@@ -388,6 +417,7 @@ object_resolver.register_handle(handle)
 
 - Player;
 - Monster;
+- Door;
 - Barrel;
 - Mine.
 
@@ -454,6 +484,7 @@ Player (CharacterBody3D)
 │   ├── GameMeters
 │   ├── GameEffects
 │   ├── GameAbilities
+│   ├── GameAbilityLoadout
 │   ├── GameControlArbiter
 │   ├── GameControlEndpoint
 │   ├── GameCharacterMotor
@@ -484,7 +515,6 @@ GameObjectKernel children
 
 ```text
 stable_id     = simple.player
-
 definition_id = simple.entity.player
 ```
 
@@ -570,19 +600,20 @@ func _attach_player_control() -> void:
         player_input_source.request_control()
 ```
 
-Player input должен владеть нужными каналами, например:
+Для обычного player input достаточно каналов:
 
 ```text
 movement
 abilities
-interaction
 ```
+
+Interaction-кнопка проходит через ability channel как обычный логический slot. Отдельный target-specific input path не нужен.
 
 Если временная способность забрала movement channel, после завершения она должна его освободить, чтобы arbiter восстановил предыдущего владельца.
 
 ---
 
-## 4.5. Движение игрока
+## 4.5. Движение и input bindings игрока
 
 Для движения используйте `GameCharacterMotor` через control pipeline.
 
@@ -607,7 +638,18 @@ dodge         = Space
 place_mine    = Q
 ```
 
-Названия action можно выбрать свои, но держите их единообразными между Project Settings и `GamePlayerInputSource`/вашим input glue.
+`GamePlayerInputSource.ability_input_bindings` должен связывать физический input с логическими slots, например:
+
+```text
+attack      → slot.primary
+interact    → slot.interaction
+dodge       → slot.mobility
+place_mine  → slot.utility_1
+```
+
+А `GameAbilityLoadout` уже связывает slot с конкретным runtime grant. Для `slot.interaction` базовый grant — `simple.ability.player.interact`.
+
+Названия action можно выбрать свои, но ability definition не должна знать кнопку.
 
 ---
 
@@ -634,6 +676,8 @@ func _physics_process(delta: float) -> void:
     if kernel != null:
         kernel.process_execution_queue()
 ```
+
+Этот scheduler намеренно остаётся локальной ответственностью owner/subscene. GCA не требует одного глобального тика: локальный цикл удобен для профилирования, изоляции тяжёлых сущностей и project-specific стратегии исполнения.
 
 Если забыть `effects.advance_time()`, периодический эффект `Горение` может быть добавлен, но его duration/periodic logic не будет нормально продвигаться.
 
@@ -684,11 +728,7 @@ func activate_ability(ability_id: StringName) -> GameCommandResult:
     return abilities.activate(request)
 ```
 
-На `attack` вызывайте:
-
-```gdscript
-activate_ability(&"simple.ability.player.attack")
-```
+Для production player input этот helper обычно не нужен: `GamePlayerInputSource → slot → GameControlEndpoint → GameAbilities` уже выполняет activation. Helper полезен для scripted/game-specific glue.
 
 ## 5.3. Поиск цели
 
@@ -797,13 +837,7 @@ PlayerInput снова владеет movement
 
 Если используете `status.invulnerable`, добавьте проверку в правила получения урона.
 
-Просто добавить тег недостаточно:
-
-```text
-status.invulnerable
-```
-
-должен приводить к тому, что incoming `GameDamageRequest` отклоняется на уровне вашей damage policy.
+Просто добавить тег недостаточно: damage policy должна отклонять incoming `GameDamageRequest` при этом теге.
 
 Для самого первого прототипа можно сначала сделать dodge **без i-frames**, убедиться, что control ownership корректно возвращается, и только затем добавить неуязвимость.
 
@@ -902,6 +936,8 @@ Monster (CharacterBody3D)
 │
 └── GameMockAIControlSource
 ```
+
+Если Monster/NPC должен взаимодействовать с миром, добавьте ему `GameInteractionSource` и generic interaction ability. Если он сам является interactable NPC, можно одновременно добавить `GameInteractionTarget`: source и target используют разные exclusive capabilities и не конфликтуют.
 
 ## 8.2. Identity и здоровье
 
@@ -1141,6 +1177,7 @@ Door (AnimatableBody3D)
 └── GameObjectKernel
     ├── GameObjectIdentity
     ├── GameTagContainer
+    ├── GameAbilities
     └── GameInteractionTarget
 ```
 
@@ -1151,85 +1188,188 @@ closed = 0°
 open   = 95°
 ```
 
+`GameAbilities.initial_abilities` двери:
+
+```text
+simple.ability.door.open
+simple.ability.door.close
+```
+
 ---
 
-## 11.2. Взаимодействие
+## 11.2. Interaction: инициатор выражает желание, цель исполняет свою ability
 
-Закрытая дверь публикует offer:
-
-```text
-offer_id   = simple.door.open
-verb_id    = verb.open
-command_id = simple.command.door.open
-```
-
-Открытая дверь публикует:
+У Player/NPC есть generic source ability:
 
 ```text
-offer_id   = simple.door.close
-verb_id    = verb.close
-command_id = simple.command.door.close
+simple.ability.player.interact
+└── GameInteractionAbilityOperation
 ```
 
-Player имеет `GameInteractionSource`.
+Она означает только:
 
-На `E` interaction pipeline должен:
+> «Я хочу взаимодействовать с чем-то».
 
-1. найти подходящий `GameInteractionTarget`;
-2. получить его offers;
-3. выбрать offer;
-4. выполнить соответствующую команду.
+Она не знает, что перед ней `Door`, `Chest`, `NPC`, и не вызывает произвольные методы цели.
 
-### Важно: offer не выполняет команду сам
+У двери есть `GameInteractionReaction`:
 
-`GameInteractionOffer` — это описание намерения.
+```text
+Open reaction
+    offer_id          = simple.door.open
+    intent_id         = open
+    verb_id           = verb.open
+    ability_id        = simple.ability.door.open
+    priority          = 50
+    default_candidate = true
 
-Нужен bridge/dispatcher уровня вашей игры:
+Close reaction
+    offer_id          = simple.door.close
+    intent_id         = close
+    verb_id           = verb.close
+    ability_id        = simple.ability.door.close
+    priority          = 50
+    default_candidate = true
+```
+
+`ability_id` находится внутри target-local reaction. `GameInteractionOffer`, который увидит UI/AI, содержит semantic `offer_id/intent_id/verb_id`, но не раскрывает target-local ability implementation.
+
+### Почему не нужен `_refresh_offers()`
+
+Door abilities используют обычные owner requirements:
+
+```text
+simple.ability.door.open
+    blocked_owner_tags = [state.open]
+
+simple.ability.door.close
+    required_owner_tags = [state.open]
+```
+
+`GameInteractionTarget.query_offers()` вызывает side-effect-free `GameAbilities.query_activation()` для reactions.
+
+Следовательно:
+
+```text
+Door CLOSED
+├── open  available
+└── close unavailable
+
+Door OPEN
+├── open  unavailable
+└── close available
+```
+
+Дверь не переписывает `offer_templates` вручную.
+
+---
+
+## 11.3. Обычный contextual interact
+
+Кнопка `E` — обычный ability binding:
+
+```text
+E
+→ GamePlayerInputSource
+→ slot.interaction
+→ simple.ability.player.interact
+→ GameInteractionAbilityOperation
+→ focused GameInteractionTarget
+→ default currently available reaction
+→ Door.GameAbilities
+→ simple.ability.door.open / close
+```
+
+Если semantic intent пуст, target выбирает первый доступный `default_candidate` по priority.
+
+Для закрытой двери это `open`, для открытой — `close`.
+
+Ни в Player, ни в ControlEndpoint, ни в InteractionSource нет:
 
 ```gdscript
-func execute_door_command(command_id: StringName) -> GameCommandResult:
-    match command_id:
-        &"simple.command.door.open":
-            return open_door()
-        &"simple.command.door.close":
-            return close_door()
-        _:
-            return GameCommandResult.configuration_error(
-                &"unknown_door_command",
-                "Unknown door command."
-            )
-```
+if target is GameDoorSimple:
+    ...
 
-Для большого проекта этот bridge лучше обобщить, но для учебного прототипа явный dispatcher отлично показывает границу между interaction data и gameplay command.
+if target.has_method("open_door"):
+    ...
+```
 
 ---
 
-## 11.3. Открытие
+## 11.4. Направленное взаимодействие
 
-`open_door()`:
+AI, GOAP или cutscene часто знают желаемое состояние. Тогда активируется **та же** generic interaction ability, но с semantic intent:
 
-1. проверяет, что дверь закрыта;
-2. меняет `_is_open = true`;
-3. запускает Tween/Animation на `Hinge` до 95°;
-4. обновляет interaction offer на `close`;
-5. испускает signal `door_opened`.
+```gdscript
+request.set_activation_payload({
+    GameInteractionRequest.ACTIVATION_INTENT_KEY: &"open",
+})
+```
 
-## 11.4. Закрытие
+При необходимости target передаётся обычным `GameAbilityActivationRequest.set_targets()`.
 
-`close_door()` делает обратное:
+Mock AI может сделать то же через control source:
 
-1. `_is_open = false`;
-2. Tween до 0°;
-3. offer становится `open`;
-4. signal `door_closed`.
+```gdscript
+ai_control_source.use_ability(
+    &"simple.ability.player.interact",
+    [door_handle],
+    execution_context,
+    {GameInteractionRequest.ACTIVATION_INTENT_KEY: &"open"}
+)
+```
 
-Как расширение позже добавьте:
+Семантика строгая:
 
-- `locked`;
-- `unlock`;
-- requirement key/tag;
-- автоматическое закрытие;
-- сохранение состояния двери.
+```text
+request(open) + CLOSED door  → door.open
+request(open) + OPEN door    → rejection/unchanged от door.open requirements
+request(open) + OPENING door → busy/rejection от door.open concurrency/requirements
+```
+
+`open` **никогда не превращается автоматически в `close`**.
+
+---
+
+## 11.5. Локальная реализация двери
+
+Door-specific operation может знать конкретный game-specific root, потому что она является внутренней реализацией **door-owned ability**.
+
+Например:
+
+```gdscript
+@tool
+extends GameAbilityOperation
+class_name GameDoorSetOpenOperationSimple
+
+@export var open: bool = true
+
+func execute(
+    _abilities: GameAbilities,
+    execution: GameAbilityExecution
+) -> GameCommandResult:
+    if execution == null or execution.get_request() == null:
+        return GameCommandResult.configuration_error(
+            &"door_execution_missing",
+            "Door ability execution is incomplete."
+        )
+
+    var owner_handle: GameObjectHandle = execution.get_request().get_owner_handle()
+    if owner_handle == null or not owner_handle.is_resolved():
+        return GameCommandResult.invalid_target("Door ability owner is unresolved.")
+
+    var door: GameDoorSimple = owner_handle.get_root() as GameDoorSimple
+    if door == null:
+        return GameCommandResult.invalid_target(
+            "Door ability owner root does not provide GameDoorSimple state."
+        )
+
+    return door.set_open(open)
+```
+
+`GameDoorSimple.set_open()` может менять собственный `state.open`, Tween/Animation и сигналы. Это локальный API реализации двери, а не interaction protocol для внешних систем.
+
+Полный цельный вариант приведён в [`example_simple_scene_complete_scripts.md`](./example_simple_scene_complete_scripts.md).
 
 ---
 
@@ -1650,7 +1790,7 @@ source/instigator = источник эффекта
 effects.advance_time(delta, execution_context)
 ```
 
-Иначе Burning может присутствовать в runtime state, но не тикать и не завершаться ожидаемым образом.
+Локальное продвижение времени owner/subscene является допустимой и намеренной моделью. Не обязательно выносить все entities в один глобальный scheduler.
 
 ---
 
@@ -1750,13 +1890,32 @@ Explosion damages placer?
 
 Монстр без navmesh и `NavigationAgent3D` сможет знать, куда идти, но не сможет корректно обходить стены.
 
-## 16.5. Interaction execution bridge
+## 16.5. Interaction focus и semantic reactions
 
-Interaction offer только описывает действие. Нужен участок кода, который переводит `command_id` в реальную gameplay-команду.
+Generic interaction ability должна получить target одним из двух путей:
+
+```text
+explicit ability target handle
+```
+
+или:
+
+```text
+current GameInteractionSource focus
+```
+
+Механизм world/camera/proximity focus остаётся отдельной targeting integration. После получения target никакого command dispatcher не нужен:
+
+```text
+GameInteractionRequest
+→ GameInteractionTarget
+→ GameInteractionReaction
+→ target-local GameAbilities
+```
 
 ## 16.6. Scheduler
 
-Периодические effects, duration и ability cooldown должны получать time advancement.
+Периодические effects, duration и ability cooldown должны получать time advancement. В этом прототипе scheduler остаётся локальным у owner/subscene.
 
 ## 16.7. Death state
 
@@ -1784,6 +1943,8 @@ Player HP
 Monster HP
 Monster AI State
 Player current control owner
+Interaction focused target
+Interaction current offers/intents
 Mine armed state
 Mine last affected_count
 Burning active / remaining time
@@ -1870,13 +2031,18 @@ Burning active / remaining time
 
 Только после этого добавляйте i-frames.
 
-## Шаг 7 — Door
+## Шаг 7 — Door interaction
 
-Сначала проверьте offers.
+Сначала:
 
-Потом command bridge.
-
-Потом анимацию.
+1. создайте `door.open` / `door.close` abilities;
+2. добавьте `state.open` requirements;
+3. настройте `GameInteractionReaction`;
+4. убедитесь, что closed door query показывает только `open`;
+5. свяжите `E → slot.interaction → generic interact ability`;
+6. проверьте default interact;
+7. отдельно проверьте `intent.open` на уже открытой двери — он не должен вызвать close;
+8. только затем добавляйте полноценную анимацию/presentation.
 
 ## Шаг 8 — Barrel
 
@@ -1946,6 +2112,7 @@ WASD
 
 ```text
 Mouse1
+→ slot.primary
 → GameAbilities
 → Player Attack Operation
 → TargetingService
@@ -1989,11 +2156,22 @@ PATROL
 
 ```text
 E
-→ InteractionSource
-→ InteractionTarget
-→ InteractionOffer
-→ command bridge
-→ open_door / close_door
+→ slot.interaction
+→ generic interaction ability
+→ GameInteractionAbilityOperation
+→ GameInteractionTarget
+→ available semantic reaction
+→ Door.GameAbilities
+→ door.open / door.close
+```
+
+Направленный AI вариант:
+
+```text
+GOAP wants OPEN
+→ generic interaction ability(target=door, intent=open)
+→ Door reaction(open)
+→ door.open only
 ```
 
 ## Бочка
@@ -2066,9 +2244,25 @@ PlaceMine Ability
 - monster не находится внутри stop/attack distance;
 - движение не перезаписывается вторым скриптом.
 
-## Door показывает interaction, но E ничего не делает
+## Door не реагирует на E
 
-Скорее всего offer существует, но отсутствует command bridge/dispatcher.
+Проверьте по цепочке:
+
+1. `interact` привязан к `slot.interaction`;
+2. slot резолвится в grant generic interaction ability;
+3. у generic ability есть `GameInteractionAbilityOperation`;
+4. у `GameInteractionSource` есть focus или ability request содержит explicit target;
+5. у Door есть `GameInteractionTarget` и local `GameAbilities`;
+6. reactions валидны;
+7. `door.open/close` grants существуют;
+8. `state.open` зарегистрирован в tag catalog;
+9. `query_activation()` действительно считает нужную door ability доступной.
+
+Не добавляйте `if target is Door` или `has_method()` для исправления этой цепочки.
+
+## `intent.open` неожиданно закрывает дверь
+
+Это нарушение semantic interaction contract. Explicit intent должен фильтровать только reactions с `intent_id == open`. Он не должен fallback-иться на default `close`.
 
 ## Burning появился, но не наносит периодический урон
 
@@ -2104,6 +2298,7 @@ Health meter и `GameDamageReceiver` — не одно и то же. Query по 
 - [ ] `GameTargetingService` передан объектам, которым нужен targeting.
 - [ ] Player зарегистрирован как GCA object.
 - [ ] Monster зарегистрирован как GCA object.
+- [ ] Door зарегистрирован как GCA object, если используется world resolver/focus.
 - [ ] Barrels зарегистрированы как GCA objects.
 - [ ] Динамические mines регистрируются после spawn.
 - [ ] Player двигается через control pipeline.
@@ -2120,9 +2315,15 @@ Health meter и `GameDamageReceiver` — не одно и то же. Query по 
 - [ ] Monster останавливается на attack distance.
 - [ ] Monster attack наносит Player damage через `GameDamageRequest`.
 - [ ] Dead Monster больше не двигается и не атакует.
-- [ ] Door выдаёт `open` offer, когда закрыта.
-- [ ] Door выдаёт `close` offer, когда открыта.
-- [ ] `E` реально доходит до command bridge.
+- [ ] Player `interact` идёт через ability slot, а не отдельный door method.
+- [ ] Door имеет local `GameAbilities`.
+- [ ] Door reaction `open` ссылается на `door.open` ability.
+- [ ] Door reaction `close` ссылается на `door.close` ability.
+- [ ] Closed Door query выдаёт semantic `open` offer.
+- [ ] Open Door query выдаёт semantic `close` offer.
+- [ ] Default interact открывает закрытую и закрывает открытую дверь.
+- [ ] Explicit `intent.open` на открытой двери не вызывает `close`.
+- [ ] Interaction code не проверяет target class и не использует `has_method("activate")`.
 - [ ] Barrel получает урон.
 - [ ] Barrel взрывается только один раз.
 - [ ] Две бочки могут дать контролируемую chain reaction.
@@ -2149,12 +2350,26 @@ Health meter и `GameDamageReceiver` — не одно и то же. Query по 
 2. Какие capability ему нужны?
 3. Какие data definitions можно создать через GCA Data Studio?
 4. Кто принимает решение/ввод?
-5. Какая Ability/Command выражает намерение?
+5. Какая Ability выражает намерение инициатора?
 6. Как выбирается Target?
-7. Какой Request/Effect изменяет состояние цели?
-8. Как Meter/Tags/DeathPolicy отражают результат?
-9. Как Presentation показывает результат игроку?
-10. Кто владеет lifecycle и world registration?
+7. Какой semantic Request/Reaction определяет ответ цели?
+8. Какая target-owned Ability реально меняет состояние цели?
+9. Как Meter/Tags/DeathPolicy отражают результат?
+10. Как Presentation показывает результат игроку?
+11. Кто владеет lifecycle, scheduler и world registration?
+```
+
+На примере двери:
+
+```text
+Player / AI
+→ generic Interact Ability
+→ GameInteractionRequest(default или intent.open)
+→ Door.GameInteractionTarget
+→ GameInteractionReaction
+→ Door.GameAbilities
+→ door.open / door.close
+→ state.open / presentation
 ```
 
 На примере мины:
@@ -2175,4 +2390,4 @@ Player
 → Presentation cue
 ```
 
-Если каждый этап этой цепочки можно отдельно проверить, архитектура остаётся модульной, а ошибка вроде «мина просто лежит» быстро локализуется до конкретного отсутствующего звена.
+Если каждый этап этой цепочки можно отдельно проверить, архитектура остаётся модульной, а ошибка вроде «мина просто лежит» или «дверь не открывается» быстро локализуется до конкретного отсутствующего звена.
