@@ -11,6 +11,7 @@ GameControlArbiter
 GameControlEndpoint
 GameCharacterMotor
 GameAbilities                 # optional
+GameAbilityLoadout            # optional, for logical action slots
 GameInteractionSource         # optional
 GamePresentationCueReceiver   # optional
 ```
@@ -61,6 +62,81 @@ The endpoint validates ownership and blocking tags, then routes:
 
 Supported blocking tags include `control.block.all`, `control.block.<channel>` and `state.dead`.
 
+Ability intents support three selectors:
+
+```text
+grant_handle_id   # exact runtime grant
+slot_id           # logical owner slot resolved through GameAbilityLoadout
+ability_id        # normal GameAbilities grant-selection policy
+```
+
+Explicit `grant_handle_id` has priority over `slot_id`. Player input should normally send `slot_id`; AI and scripted systems may use a slot, ability ID, or exact grant depending on their decision contract.
+
+## Player ability input
+
+`GamePlayerInputSource` no longer stores a concrete `primary_ability_id` and does not hardcode `ability_primary → one ability`.
+
+Instead it owns an arbitrary list of `GameAbilityInputBinding` resources:
+
+```text
+ability_primary   → slot.primary
+ability_secondary → slot.secondary
+ability_mobility  → slot.mobility
+ability_1         → slot.quick_1
+ability_2         → slot.quick_2
+```
+
+A binding contains only:
+
+- Godot `input_action`;
+- logical `slot_id`.
+
+It deliberately does **not** contain ability-specific activation payloads. Player input is only a decision source. Ability-specific runtime data should come from normalized targeting state, grant/source data, capabilities, or injected world/gameplay ports rather than character-specific callbacks attached to an input button.
+
+Conceptually the runtime path is:
+
+```text
+Input action
+→ GamePlayerInputSource
+→ ability intent { slot_id }
+→ GameControlEndpoint
+→ GameAbilityLoadout.resolve_slot()
+→ grant_handle_id
+→ GameAbilities.activate()
+```
+
+This lets the controlled object change abilities at runtime without changing player input code.
+
+Example programmatic setup:
+
+```gdscript
+var primary := GameAbilityInputBinding.new()
+primary.input_action = &"ability_primary"
+primary.slot_id = &"slot.primary"
+player_source.ability_input_bindings = [primary]
+```
+
+The same player source can therefore control a warrior, mage or runtime-equipped character without knowing their concrete abilities.
+
+## Runtime equipment override
+
+A base loadout may resolve:
+
+```text
+slot.primary → Punch grant
+```
+
+An equipped sword may grant `SwordAttack` and bind it with a higher priority:
+
+```text
+slot.primary → SwordAttack grant (priority 100)
+slot.primary → Punch grant       (priority 0)
+```
+
+The sword binding wins while its grant is valid. When the sword grant is revoked, slot resolution skips the stale grant and `Punch` becomes active again. No character-specific `if has_sword` branch is required.
+
+Bindings are source-owned. Inventory/effect adapters should keep both the grant handle and slot binding handle (or a unique binding source key) and remove only their own records.
+
 ## Movement
 
 `GameCharacterMotor` is the first Godot-native motor adapter. It requires a `CharacterBody3D` object root and optionally reads `movement_speed` from `GameAttributes`. It owns `velocity`, gravity, facing and `move_and_slide()`.
@@ -100,6 +176,7 @@ Looping cues require an ownership key and can be stopped by key or execution ID.
 ## Source responsibilities
 
 - `GamePlayerInputSource` is the only Stage 4 class that reads Godot `Input`.
+- `GamePlayerInputSource` maps input actions to logical slots, not concrete abilities.
 - `GameMockAIControlSource` exposes deterministic helper methods for tests and future GOAP adaptation.
 - `GameScriptedControlSource` supports temporary channel takeover and restoration.
 
@@ -114,11 +191,13 @@ func _physics_process(delta: float) -> void:
 	kernel.process_execution_queue()
 ```
 
-`GameCharacterMotor` runs its own physics callback because it owns Godot physics movement. Grants, effects, reservations and control intents do not create per-instance processing nodes.
+`GameCharacterMotor` runs its own physics callback because it owns Godot physics movement. Grants, loadout bindings, effects, reservations and control intents do not create per-instance processing nodes.
 
 ## Known limits
 
 - World focus/spatial queries are deferred to Stage 5; the first version accepts explicit target handles.
 - Hold and paired interaction data contracts are reserved, but full asynchronous execution waits are not implemented in Stage 3.
 - Camera and animation ports are represented by presentation cues; concrete rigs/adapters remain game content.
+- Loadout persistence and Inventory System reconciliation remain Stage 5 adapter responsibilities.
+- The old `example_simple_scene_complete_scripts.md` remains a game-specific prototype companion and still contains callback/payload fallbacks for its demo operations. Those callbacks are not the recommended production input-to-ability path after this API change.
 - No scenes, `.tres`, `.uid`, `project.godot` or binary resources are included.

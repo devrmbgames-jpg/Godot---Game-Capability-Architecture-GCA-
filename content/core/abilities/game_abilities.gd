@@ -177,6 +177,16 @@ func get_effects() -> GameEffects: return _effects
 ## Returns the resolved tag container used for execution-owned tags.
 func get_tags() -> GameTagContainer: return _tags
 
+## Returns whether an enabled, valid grant exists for one owner-local handle.
+func has_grant(handle_id: int) -> bool:
+	var grant: GameAbilityGrant = _grants.get(handle_id) as GameAbilityGrant
+	return grant != null and grant.is_enabled()
+
+## Resolves the preferred enabled grant handle for [param ability_id] without mutations.
+func resolve_grant_handle(ability_id: StringName) -> int:
+	var grant: GameAbilityGrant = _select_grant(ability_id)
+	return grant.get_handle_id() if grant != null else 0
+
 ## Creates a source-owned grant for [param definition].
 ## Multiple grants of the same ability ID remain independent.
 func grant_ability(definition: GameAbilityDefinition, source_handle: GameObjectHandle = null, source_definition_id: StringName = &"", level: int = 1, charges: int = -1, source_priority: int = 0, runtime_overrides: Dictionary = {}) -> GameCommandResult:

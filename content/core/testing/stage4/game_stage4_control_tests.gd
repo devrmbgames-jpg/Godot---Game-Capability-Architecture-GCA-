@@ -1,5 +1,5 @@
 extends RefCounted
-## Isolated contract tests for Stage 4 control ownership, intents, and interaction offers.
+## Isolated contract tests for Stage 4 control ownership, intents, ability slots, and interaction offers.
 class_name GameStage4ControlTests
 
 # ====== PUBLIC ========
@@ -49,6 +49,28 @@ static func test_control_intent_validation() -> void:
 	var intent := GameControlIntent.new(&"movement.desired", &"test.source", null, GameControlChannels.MOVEMENT, context, {"direction": Vector3.FORWARD}, GameControlIntent.ConsumePolicy.CONTINUOUS)
 	assert(intent.is_valid())
 	assert(intent.is_continuous())
+
+## Verifies player input bindings target logical slots instead of concrete ability IDs.
+static func test_ability_input_binding_contract() -> void:
+	var binding := GameAbilityInputBinding.new()
+	binding.input_action = &"ability_primary"
+	binding.slot_id = &"slot.primary"
+	assert(binding.is_valid())
+
+## Verifies runtime slot bindings preserve source, priority, and grant identity.
+static func test_ability_slot_binding_contract() -> void:
+	var binding := GameAbilitySlotBinding.new(
+		7,
+		&"slot.primary",
+		42,
+		&"item.sword.instance_1",
+		100
+	)
+	assert(binding.is_valid())
+	assert(binding.get_handle_id() == 7)
+	assert(binding.get_grant_handle_id() == 42)
+	assert(binding.get_source_id() == &"item.sword.instance_1")
+	assert(binding.get_priority() == 100)
 
 ## Verifies that an ability-backed reservable interaction offer satisfies its contract.
 static func test_offer_contract() -> void:
