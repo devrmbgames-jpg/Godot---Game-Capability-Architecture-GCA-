@@ -1,4 +1,8 @@
 extends Node
+## Performs deterministic world-space target queries over resolved GCA object handles.
+##
+## The service returns handles and query metadata instead of exposing raw scene nodes to
+## abilities, AI, or interaction systems. Candidates are ordered by distance and stable ID.
 class_name GameTargetingService
 
 # ======== EXPORT =========
@@ -8,6 +12,12 @@ class_name GameTargetingService
 var _query_version: int = 0
 
 # ====== PUBLIC ========
+## Finds resolved objects inside a sphere around [param origin].
+##
+## Candidates may be filtered by [param required_capability], [param required_tags], and
+## stable IDs in [param excluded_ids]. A positive [param maximum_count] truncates the
+## deterministically sorted result. Returns [code]handles[/code], parallel
+## [code]metadata[/code], and a monotonically increasing [code]query_version[/code].
 func query_sphere(origin: Vector3, radius: float, required_capability: StringName = &"", required_tags: Array[StringName] = [], excluded_ids: Array[StringName] = [], maximum_count: int = 0) -> Dictionary:
 	_query_version += 1
 	var candidates: Array[Dictionary] = []

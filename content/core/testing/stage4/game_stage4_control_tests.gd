@@ -1,7 +1,9 @@
 extends RefCounted
+## Isolated contract tests for Stage 4 control ownership, intents, and interaction offers.
 class_name GameStage4ControlTests
 
 # ====== PUBLIC ========
+## Verifies temporary high-priority ownership preemption and automatic previous-owner restoration.
 static func test_arbiter_preemption_and_restore() -> void:
 	var arbiter := GameControlArbiter.new()
 	var player := GameControlSource.new()
@@ -22,6 +24,7 @@ static func test_arbiter_preemption_and_restore() -> void:
 	scripted.free()
 	arbiter.free()
 
+## Verifies that a lower-priority source cannot preempt an occupied channel.
 static func test_lower_priority_cannot_preempt() -> void:
 	var arbiter := GameControlArbiter.new()
 	var high := GameControlSource.new()
@@ -40,12 +43,14 @@ static func test_lower_priority_cannot_preempt() -> void:
 	low.free()
 	arbiter.free()
 
+## Verifies normalized control intent validation and continuous consumption policy.
 static func test_control_intent_validation() -> void:
 	var context := GameExecutionContext.new()
 	var intent := GameControlIntent.new(&"movement.desired", &"test.source", null, GameControlChannels.MOVEMENT, context, {"direction": Vector3.FORWARD}, GameControlIntent.ConsumePolicy.CONTINUOUS)
 	assert(intent.is_valid())
 	assert(intent.is_continuous())
 
+## Verifies that an ability-backed reservable interaction offer satisfies its contract.
 static func test_offer_contract() -> void:
 	var handle := GameObjectHandle.new(&"test.target", 1)
 	var offer := GameInteractionOffer.new(&"open", &"verb.open", handle)

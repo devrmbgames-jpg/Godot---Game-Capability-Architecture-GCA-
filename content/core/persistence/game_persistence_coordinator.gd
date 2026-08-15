@@ -1,7 +1,13 @@
 extends Node
+## Coordinates world-object registration, snapshot capture, migration, and restore phases.
+##
+## Persists stable object metadata and delegates component state to registered
+## [GamePersistenceParticipant] contracts in a deterministic phased restore flow.
 class_name GamePersistenceCoordinator
 
+## Emitted whenever the coordinator enters a new [enum RestorePhase].
 signal restore_phase_changed(phase: int)
+## Emitted after all restore phases complete with a structured report.
 signal world_restored(report: Dictionary)
 
 enum RestorePhase { IDLE, VALIDATE_AND_MIGRATE, RESTORE_LOCAL_STATE, RESOLVE_REFERENCES, ACTIVATE_GAMEPLAY, COMPLETED }
@@ -23,12 +29,14 @@ func _set_phase(value: int) -> void:
 	restore_phase_changed.emit(value)
 
 # ====== PUBLIC ========
+## Registers stable object metadata for future world snapshots.
 func register_object(handle: GameObjectHandle, scene_id: StringName = &"", region_id: StringName = &"", lifecycle: StringName = &"active") -> GameCommandResult:
 	if handle == null or handle.get_stable_id().is_empty():
 		return GameCommandResult.configuration_error(&"invalid_persistent_object", "Stable handle required.")
 	_objects[handle.get_stable_id()] = {"handle": handle, "scene_id": scene_id, "region_id": region_id, "lifecycle": lifecycle}
 	return GameCommandResult.success_changed(&"persistent_object_registered")
 
+## Registers one unique object/component persistence participant.
 func register_participant(participant: GamePersistenceParticipant) -> GameCommandResult:
 	if participant == null or not participant.is_valid():
 		return GameCommandResult.configuration_error(&"invalid_persistence_participant", "Participant is incomplete.")
@@ -38,6 +46,7 @@ func register_participant(participant: GamePersistenceParticipant) -> GameComman
 	_participants[key] = participant
 	return GameCommandResult.success_changed(&"participant_registered")
 
+## Captures a deterministic world snapshot containing object metadata and component data.
 func capture_world_snapshot() -> Dictionary:
 	var objects: Array[Dictionary] = []
 	var ids: Array = _objects.keys()
@@ -55,6 +64,8 @@ func capture_world_snapshot() -> Dictionary:
 		objects.append({"stable_id": object_id, "scene_id": meta.scene_id, "region_id": meta.region_id, "lifecycle": meta.lifecycle, "transform": transform, "components": components})
 	return {"schema_version": 1, "objects": objects}
 
+## Validates, migrates, restores, and post-resolves all known component snapshots.
+## Returns a report listing restored, missing, migration-failed, and restore-failed entries.
 func restore_world_snapshot(snapshot: Dictionary) -> Dictionary:
 	var report: Dictionary = {"restored": [], "missing": [], "migration_failures": [], "restore_failures": []}
 	var prepared: Array[Dictionary] = []
@@ -88,5 +99,6 @@ func restore_world_snapshot(snapshot: Dictionary) -> Dictionary:
 	world_restored.emit(report)
 	return report
 
+## Returns registered object IDs, participant count, and current restore phase.
 func get_debug_snapshot() -> Dictionary:
 	return {"objects": _objects.keys(), "participant_count": _participants.size(), "restore_phase": _phase}

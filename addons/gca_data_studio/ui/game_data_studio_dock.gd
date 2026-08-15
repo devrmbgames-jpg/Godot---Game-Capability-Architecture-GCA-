@@ -1,5 +1,8 @@
 @tool
 extends Control
+
+## Provides the main GCA Data Studio editor workspace for indexing, validating, creating,
+## inspecting, and editing supported gameplay definition resources.
 class_name GameDataStudioDock
 
 # ======= CONSTS =========
@@ -54,6 +57,7 @@ var _edited_resource: Resource = null
 var _suppress_table_signal: bool = false
 
 # ======= OVERRIDE =======
+## Initializes the editor-only index, validator, scene bindings, and first table view.
 func _ready() -> void:
 	name = "GCADataStudio"
 	_index = INDEX_SCRIPT.new() as GameDataIndex
@@ -334,19 +338,24 @@ func _apply_property_change(resource: Resource, property_name: StringName, value
 	_undo_redo.commit_action()
 
 # ====== PUBLIC ========
+## Supplies the editor services required by resource editing and undo/redo transactions.
 func set_editor_context(editor_interface: EditorInterface, undo_redo: EditorUndoRedoManager) -> void:
 	_editor_interface = editor_interface
 	_undo_redo = undo_redo
 
+## Rebuilds the resource index and refreshes the visible categories and table rows.
 func refresh_data() -> void:
 	_rebuild_index()
 
+## Validates all indexed definitions and updates issue counts in the table.
 func validate_data() -> void:
 	_validate_project()
 
+## Creates a definition for the currently selected supported resource category.
 func create_definition() -> void:
 	_create_definition()
 
+## Persists an edited resource and then refreshes its index record and validation state.
 func _save_resource(resource: Resource, path: String) -> void:
 	ResourceSaver.save(resource, path)
 	_index.refresh_record(path)

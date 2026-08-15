@@ -1,5 +1,9 @@
 @tool
 extends GameAbilityOperation
+## Ability operation that applies one effect definition to normalized targets.
+##
+## Resolves each target through its handle and requires the target's
+## [constant GameCapabilityIds.EFFECTS_RECEIVER] capability.
 class_name GameAbilityApplyEffectOperation
 
 # ======== EXPORT =========
@@ -7,6 +11,8 @@ class_name GameAbilityApplyEffectOperation
 @export var apply_to_owner: bool = false
 
 # ====== PUBLIC ========
+## Applies [member effect_definition] to the request targets or ability owner.
+## Stops at the first invalid target or failed effect application.
 func execute(abilities: GameAbilities, execution: GameAbilityExecution) -> GameCommandResult:
 	if effect_definition == null or not effect_definition.is_valid():
 		return GameCommandResult.configuration_error(&"invalid_operation_effect", "Apply-effect operation has an invalid definition.")
@@ -30,5 +36,6 @@ func execute(abilities: GameAbilities, execution: GameAbilityExecution) -> GameC
 			return result
 	return GameCommandResult.success_changed(&"ability_effects_applied")
 
+## Returns whether a valid effect definition is assigned.
 func is_valid() -> bool:
 	return effect_definition != null and effect_definition.is_valid()

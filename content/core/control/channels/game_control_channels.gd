@@ -1,4 +1,8 @@
 extends RefCounted
+## Central catalog of normalized control channel IDs.
+##
+## Channels express independent ownership rights for movement, look, abilities,
+## interaction, camera, targeting, and UI navigation.
 class_name GameControlChannels
 
 # ======= CONSTS =========
@@ -21,5 +25,6 @@ const ALL: Array[StringName] = [
 ]
 
 # ====== PUBLIC ========
+## Returns whether [param channel_id] belongs to the supported channel catalog.
 static func is_known(channel_id: StringName) -> bool:
 	return channel_id in ALL

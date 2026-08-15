@@ -1,7 +1,12 @@
 @tool
 extends GameFeature
+## Feature that arbitrates independent control-channel ownership.
+##
+## Registers control sources, applies priority-based preemption, tracks temporary
+## overrides, and restores previous channel owners when possible.
 class_name GameControlArbiter
 
+## Emitted whenever a channel changes owner.
 signal channel_owner_changed(channel_id: StringName, previous_source_id: StringName, current_source_id: StringName)
 
 # ======== PRIVATE VAR ======
@@ -11,6 +16,7 @@ var _priorities: Dictionary = {}
 var _restore_stack: Dictionary = {}
 
 # ======= OVERRIDE =======
+## Configures the exclusive control-arbiter capability.
 func _init() -> void:
 	feature_id = &"object.control_arbiter"
 	if provided_capabilities.is_empty():
@@ -18,6 +24,7 @@ func _init() -> void:
 		spec.capability_id = GameCapabilityIds.CONTROL_ARBITER
 		provided_capabilities.append(spec)
 
+## Releases all owned channels and clears registered source state.
 func on_game_shutdown() -> void:
 	for channel_id: StringName in _owners.keys():
 		_notify_source(_owners[channel_id], channel_id, false)
@@ -37,12 +44,14 @@ func _set_owner(channel_id: StringName, source_id: StringName, priority: int) ->
 	channel_owner_changed.emit(channel_id, previous, source_id)
 
 # ====== PUBLIC ========
+## Registers a unique control source with the arbiter.
 func register_source(source: GameControlSource) -> GameCommandResult:
 	if source == null or source.source_id.is_empty(): return GameCommandResult.configuration_error(&"invalid_control_source", "Control source is invalid.")
 	if _sources.has(source.source_id): return GameCommandResult.configuration_error(&"duplicate_control_source", "Control source ID is duplicated.")
 	_sources[source.source_id] = source
 	return GameCommandResult.success_changed(&"control_source_registered")
 
+## Unregisters a source and releases every channel it currently owns.
 func unregister_source(source_id: StringName) -> void:
 	if not _sources.has(source_id): return
 	var channels: Array[StringName] = []
@@ -51,6 +60,9 @@ func unregister_source(source_id: StringName) -> void:
 	for channel_id: StringName in channels: release_ownership(source_id, channel_id)
 	_sources.erase(source_id)
 
+## Requests ownership of [param channel_id] for a registered source.
+## Higher priority may preempt the current owner; temporary overrides preserve a
+## restoration candidate.
 func request_ownership(source_id: StringName, channel_id: StringName, priority: int = 0, temporary_override: bool = false) -> GameCommandResult:
 	if not _sources.has(source_id): return GameCommandResult.rejected_permanent(&"unknown_control_source", "Control source is not registered.")
 	if not GameControlChannels.is_known(channel_id): return GameCommandResult.configuration_error(&"unknown_control_channel", "Unknown control channel '%s'." % channel_id)
@@ -66,6 +78,7 @@ func request_ownership(source_id: StringName, channel_id: StringName, priority: 
 	_set_owner(channel_id, source_id, priority)
 	return GameCommandResult.success_changed(&"channel_acquired")
 
+## Releases one owned channel and restores the latest valid fallback source.
 func release_ownership(source_id: StringName, channel_id: StringName) -> GameCommandResult:
 	if _owners.get(channel_id, &"") != source_id: return GameCommandResult.success_unchanged(&"channel_not_owned")
 	_notify_source(source_id, channel_id, false)
@@ -79,8 +92,10 @@ func release_ownership(source_id: StringName, channel_id: StringName) -> GameCom
 	_restore_stack[channel_id] = stack
 	return GameCommandResult.success_changed(&"channel_released")
 
+## Returns whether [param source_id] currently owns [param channel_id].
 func owns_channel(source_id: StringName, channel_id: StringName) -> bool:
 	return _owners.get(channel_id, &"") == source_id
 
+## Returns registered sources, owners, priorities, and restoration stacks.
 func get_debug_snapshot() -> Dictionary:
 	return {"sources": _sources.keys(), "owners": _owners.duplicate(), "priorities": _priorities.duplicate(), "restore_stack": _restore_stack.duplicate(true)}

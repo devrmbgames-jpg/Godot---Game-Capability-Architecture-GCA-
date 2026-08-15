@@ -1,5 +1,10 @@
 @tool
 extends GameFeature
+## Central feature for ability grants, activation, execution, costs, and cooldowns.
+##
+## Keeps shared definitions immutable, selects owner-specific grants, performs
+## side-effect-free activation queries, commits costs atomically, owns execution
+## channels and tags, and publishes ability lifecycle events.
 class_name GameAbilities
 
 # ======== EXPORT =========
@@ -20,6 +25,7 @@ var _effects: GameEffects = null
 var _tags: GameTagContainer = null
 
 # ======= OVERRIDE =======
+## Configures ability capabilities and optional local gameplay dependencies.
 func _init() -> void:
 	feature_id = &"object.abilities"
 	if provided_capabilities.is_empty():
@@ -35,6 +41,7 @@ func _init() -> void:
 			dependency.required = false
 			optional_dependencies.append(dependency)
 
+## Returns editor warnings for invalid or duplicated initial definitions.
 func _get_configuration_warnings() -> PackedStringArray:
 	var warnings: PackedStringArray = super()
 	var ids: Dictionary = {}
@@ -47,6 +54,7 @@ func _get_configuration_warnings() -> PackedStringArray:
 			ids[definition.ability_id] = true
 	return warnings
 
+## Resets runtime state, resolves optional dependencies, and grants initial abilities.
 func on_game_initialize() -> GameCommandResult:
 	_grants.clear(); _grant_ids_by_ability.clear(); _executions.clear(); _cooldowns.clear(); _occupied_channels.clear()
 	_grant_counter = 0; _execution_counter = 0
@@ -61,6 +69,7 @@ func on_game_initialize() -> GameCommandResult:
 		if not result.is_success(): return result
 	return GameCommandResult.success_changed(&"abilities_initialized")
 
+## Cancels active executions, invalidates grants, and clears owner runtime state.
 func on_game_shutdown() -> void:
 	for execution_id: int in _executions.keys(): cancel_execution(execution_id, &"shutdown")
 	for grant: GameAbilityGrant in _grants.values(): grant.invalidate()
@@ -161,10 +170,15 @@ func _run_execution(execution: GameAbilityExecution) -> GameCommandResult:
 	return GameCommandResult.success_changed(&"ability_completed", execution)
 
 # ====== PUBLIC ========
+## Returns the resolved meters dependency used by meter costs.
 func get_meters() -> GameMeters: return _meters
+## Returns the resolved local effects feature used by operations.
 func get_effects() -> GameEffects: return _effects
+## Returns the resolved tag container used for execution-owned tags.
 func get_tags() -> GameTagContainer: return _tags
 
+## Creates a source-owned grant for [param definition].
+## Multiple grants of the same ability ID remain independent.
 func grant_ability(definition: GameAbilityDefinition, source_handle: GameObjectHandle = null, source_definition_id: StringName = &"", level: int = 1, charges: int = -1, source_priority: int = 0, runtime_overrides: Dictionary = {}) -> GameCommandResult:
 	if definition == null or not definition.is_valid(): return GameCommandResult.configuration_error(&"invalid_ability_definition", "Ability definition is invalid.")
 	_grant_counter += 1
@@ -173,6 +187,7 @@ func grant_ability(definition: GameAbilityDefinition, source_handle: GameObjectH
 	var ids: Array[int] = _grant_ids_by_ability.get(definition.ability_id, []); ids.append(_grant_counter); _grant_ids_by_ability[definition.ability_id] = ids
 	return GameCommandResult.success_changed(&"ability_granted", grant)
 
+## Revokes one grant by handle and cancels only its active executions.
 func revoke_grant(handle_id: int, reason: StringName = &"revoked") -> GameCommandResult:
 	var grant: GameAbilityGrant = _grants.get(handle_id) as GameAbilityGrant
 	if grant == null: return GameCommandResult.rejected_permanent(&"unknown_grant", "Unknown grant handle.")
@@ -183,12 +198,14 @@ func revoke_grant(handle_id: int, reason: StringName = &"revoked") -> GameComman
 	grant.invalidate(); _grants.erase(handle_id)
 	return GameCommandResult.success_changed(&"ability_revoked")
 
+## Checks activation availability without mutating costs, cooldowns, or executions.
 func query_activation(request: GameAbilityActivationRequest) -> GameAbilityActivationQueryResult:
 	if request == null or request.get_execution_context() == null: return GameAbilityActivationQueryResult.unavailable(&"invalid_request", "Activation request is incomplete.")
 	var grant: GameAbilityGrant = _select_grant(request.get_ability_id(), request.get_grant_handle_id())
 	if grant == null: return GameAbilityActivationQueryResult.unavailable(&"no_grant", "No matching ability grant exists.")
 	return _validate_definition(grant, request)
 
+## Validates, prepares, commits, and executes one activation request.
 func activate(request: GameAbilityActivationRequest) -> GameCommandResult:
 	if _executions.size() >= max_active_executions: return GameCommandResult.rejected_temporary(&"execution_limit", "Maximum active executions reached.")
 	var query_result: GameAbilityActivationQueryResult = query_activation(request)
@@ -205,6 +222,8 @@ func activate(request: GameAbilityActivationRequest) -> GameCommandResult:
 	_emit_event(&"ability_started", child_context, {"ability_id": grant.get_definition().ability_id, "grant_handle_id": grant.get_handle_id(), "execution_id": execution.get_execution_id()})
 	return _run_execution(execution)
 
+## Cancels one active execution, invokes operation cleanup, refunds configured costs,
+## releases owned tags/channels, and publishes an ability-cancelled event.
 func cancel_execution(execution_id: int, reason: StringName = &"cancelled") -> GameCommandResult:
 	var execution: GameAbilityExecution = _executions.get(execution_id) as GameAbilityExecution
 	if execution == null or execution.is_terminal(): return GameCommandResult.rejected_permanent(&"execution_not_active", "Execution is not active.")
@@ -215,6 +234,7 @@ func cancel_execution(execution_id: int, reason: StringName = &"cancelled") -> G
 	_emit_event(&"ability_cancelled", execution.get_execution_context(), {"ability_id": execution.get_definition().ability_id, "execution_id": execution_id, "reason": reason})
 	return GameCommandResult.new(GameCommandResult.Status.CANCELLED, reason, "Ability execution cancelled.", 0, execution)
 
+## Advances all cooldown states and removes expired keys after iteration.
 func advance_time(delta: float) -> void:
 	var expired: Array[StringName] = []
 	for key: StringName in _cooldowns.keys():
@@ -222,10 +242,12 @@ func advance_time(delta: float) -> void:
 		if not cooldown.is_active(): expired.append(key)
 	for key: StringName in expired: _cooldowns.erase(key)
 
+## Returns remaining time for a cooldown key, or [code]0.0[/code] when inactive.
 func get_cooldown_remaining(key: StringName) -> float:
 	var cooldown: GameAbilityCooldownState = _cooldowns.get(key) as GameAbilityCooldownState
 	return cooldown.get_remaining() if cooldown != null else 0.0
 
+## Returns grants, executions, cooldowns, and occupied channels for diagnostics.
 func get_debug_snapshot() -> Dictionary:
 	var grants: Array[Dictionary] = []; for grant: GameAbilityGrant in _grants.values(): grants.append(grant.to_dictionary())
 	var executions: Array[Dictionary] = []; for execution: GameAbilityExecution in _executions.values(): executions.append(execution.to_dictionary())

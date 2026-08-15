@@ -1,5 +1,10 @@
 @tool
 extends GameFeature
+## Feature that applies, schedules, stacks, queries, and removes gameplay effects.
+##
+## Owns lightweight [GameActiveEffect] instances and their modifier/tag handles.
+## Periodic work is advanced centrally through [method advance_time] instead of
+## creating one processing Node per effect.
 class_name GameEffects
 
 # ======== PRIVATE VAR ======
@@ -10,6 +15,7 @@ var _meters: GameMeters = null
 var _tags: GameTagContainer = null
 
 # ======= OVERRIDE =======
+## Configures effect capabilities and optional attribute, meter, and tag dependencies.
 func _init() -> void:
 	feature_id = &"object.effects"
 	if provided_capabilities.is_empty():
@@ -25,6 +31,7 @@ func _init() -> void:
 			dependency.required = false
 			optional_dependencies.append(dependency)
 
+## Resolves local mutation dependencies and resets runtime effect state.
 func on_game_initialize() -> GameCommandResult:
 	_attributes = get_dependency(GameCapabilityIds.ATTRIBUTES_MODIFY) as GameAttributes
 	_meters = get_dependency(GameCapabilityIds.METERS_MODIFY) as GameMeters
@@ -33,6 +40,7 @@ func on_game_initialize() -> GameCommandResult:
 	_handle_counter = 0
 	return GameCommandResult.success_changed(&"effects_initialized")
 
+## Removes every active effect and releases all owned runtime handles.
 func on_game_shutdown() -> void:
 	var handles: Array = _active_effects.keys()
 	for handle_id: int in handles:
@@ -110,6 +118,8 @@ func _cleanup_runtime_ownership(active_effect: GameActiveEffect) -> void:
 			_tags.remove_tag(tag_handle)
 
 # ====== PUBLIC ========
+## Validates and applies [param definition] to this feature's owner.
+## Handles stacking, ownership cleanup, instant effects, and structured failures.
 func apply_effect(definition: GameEffectDefinition, source_handle: GameObjectHandle, instigator_handle: GameObjectHandle, execution_context: GameExecutionContext) -> GameCommandResult:
 	if definition == null or not definition.is_valid():
 		return GameCommandResult.configuration_error(&"invalid_effect_definition", "Effect definition is invalid.")
@@ -155,6 +165,8 @@ func apply_effect(definition: GameEffectDefinition, source_handle: GameObjectHan
 		_active_effects[_handle_counter] = active_effect
 	return GameCommandResult.success_changed(&"effect_applied", active_effect)
 
+## Removes one active effect and only the runtime handles owned by it.
+## Returns [code]false[/code] when [param handle_id] is unknown.
 func remove_effect(handle_id: int, _reason: StringName = &"removed") -> bool:
 	if not _active_effects.has(handle_id):
 		return false
@@ -163,6 +175,8 @@ func remove_effect(handle_id: int, _reason: StringName = &"removed") -> bool:
 	_active_effects.erase(handle_id)
 	return true
 
+## Advances all active durations and periodic meter operations.
+## Expired effects are removed after iteration to avoid collection mutation.
 func advance_time(delta: float, execution_context: GameExecutionContext) -> void:
 	var expired: Array[int] = []
 	for active_effect: GameActiveEffect in _active_effects.values():
@@ -174,6 +188,7 @@ func advance_time(delta: float, execution_context: GameExecutionContext) -> void
 	for handle_id: int in expired:
 		remove_effect(handle_id, &"expired")
 
+## Returns diagnostic dictionaries for all active effects.
 func get_debug_snapshot() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for active_effect: GameActiveEffect in _active_effects.values():

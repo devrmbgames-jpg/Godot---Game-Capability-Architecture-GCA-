@@ -1,4 +1,8 @@
 extends RefCounted
+## Central catalog of stable capability identifiers used by GCA components and services.
+##
+## Capability IDs describe contracts rather than concrete classes. Add new IDs here to
+## keep validation, diagnostics, and integrations consistent across the framework.
 class_name GameCapabilityIds
 
 # ======= CONSTS =========
@@ -43,4 +47,7 @@ const TEST_COUNTER: StringName = &"test.counter"
 const TEST_CHAIN: StringName = &"test.chain"
 const TEST_MULTI: StringName = &"test.multi"
 const ALL: Array[StringName] = [OBJECT_IDENTITY, TAGS_QUERY, TAGS_MODIFY, ATTRIBUTES_PROVIDER, ATTRIBUTES_QUERY, ATTRIBUTES_MODIFY, METERS_PROVIDER, METERS_QUERY, METERS_MODIFY, EFFECTS_RECEIVER, EFFECTS_QUERY, EFFECTS_DISPEL, EFFECTS_SCHEDULER_HOST, ABILITIES_OWNER, ABILITIES_QUERY, ABILITIES_ACTIVATE, ABILITIES_GRANT, ABILITIES_CANCEL, CONTROL_ARBITER, CONTROL_ENDPOINT, CONTROL_INTENT_RECEIVER, CONTROL_QUERY, MOVEMENT_MOTOR, MOVEMENT_QUERY, INTERACTION_SOURCE, INTERACTION_TARGET, INTERACTION_QUERY, INTERACTION_RESERVABLE, PRESENTATION_CUE_RECEIVER, OBJECT_RESOLVER, SPAWN_SERVICE, TARGETING_SERVICE, TIME_SERVICE, PERSISTENCE_COORDINATOR, DAMAGE_RECEIVER, DEATH_POLICY, INVENTORY_OWNER, TEST_COUNTER, TEST_CHAIN, TEST_MULTI]
-static func is_known(capability_id: StringName) -> bool: return capability_id in ALL
+
+## Returns whether [param capability_id] is registered in the framework catalog.
+static func is_known(capability_id: StringName) -> bool:
+	return capability_id in ALL

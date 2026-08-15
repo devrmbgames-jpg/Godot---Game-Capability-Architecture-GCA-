@@ -1,4 +1,8 @@
 extends RefCounted
+## Central catalog of framework-level gameplay tag identifiers used by GCA examples and policies.
+##
+## Game-specific tags should normally live in [GameTagCatalog] resources rather than being
+## scattered as string literals throughout gameplay code.
 class_name GameTagIds
 
 # ======= CONSTS =========
@@ -21,5 +25,6 @@ const ALL: Array[StringName] = [
 ]
 
 # ====== PUBLIC ========
+## Returns whether [param tag_id] is part of the framework tag catalog.
 static func is_known(tag_id: StringName) -> bool:
 	return tag_id in ALL

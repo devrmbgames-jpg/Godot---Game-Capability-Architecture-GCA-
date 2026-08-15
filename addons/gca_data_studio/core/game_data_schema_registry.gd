@@ -1,5 +1,9 @@
 @tool
 extends RefCounted
+## Static schema catalog used by GCA Data Studio to index and edit definition resources.
+##
+## Schemas describe stable IDs, display fields, storage folders, file prefixes, scripts, and
+## table columns without coupling the editor UI to individual Resource implementations.
 class_name GameDataSchemaRegistry
 
 # ======= CONSTS =========
@@ -108,9 +112,11 @@ static func _has_property(resource: Resource, property_name: StringName) -> bool
 	return false
 
 # ====== PUBLIC ========
+## Returns a deep copy of the editing schema for [param resource_class].
 static func get_schema(resource_class: StringName) -> Dictionary:
 	return (SCHEMAS.get(resource_class, {}) as Dictionary).duplicate(true)
 
+## Returns explicitly supported resource classes in deterministic order.
 static func get_supported_classes() -> Array[StringName]:
 	var result: Array[StringName] = []
 	for resource_class: StringName in SCHEMAS.keys():
@@ -118,6 +124,7 @@ static func get_supported_classes() -> Array[StringName]:
 	result.sort_custom(func(a: StringName, b: StringName) -> bool: return String(a) < String(b))
 	return result
 
+## Detects a resource's global script class or falls back to its built-in class name.
 static func detect_resource_class(resource: Resource) -> StringName:
 	if resource == null:
 		return &""
@@ -128,6 +135,7 @@ static func detect_resource_class(resource: Resource) -> StringName:
 			return global_name
 	return StringName(resource.get_class())
 
+## Resolves the stable ID property configured for [param resource], including generic fallbacks.
 static func detect_id_property(resource: Resource, resource_class: StringName = &"") -> StringName:
 	var schema: Dictionary = get_schema(resource_class)
 	var configured_property: StringName = schema.get("id_property", &"")
@@ -138,6 +146,7 @@ static func detect_id_property(resource: Resource, resource_class: StringName = 
 			return property_name
 	return &""
 
+## Returns whether [param resource] can be indexed by Data Studio.
 static func is_indexable(resource: Resource) -> bool:
 	var resource_class: StringName = detect_resource_class(resource)
 	if SCHEMAS.has(resource_class):
@@ -146,6 +155,7 @@ static func is_indexable(resource: Resource) -> bool:
 		return false
 	return not detect_id_property(resource, resource_class).is_empty()
 
+## Returns the stable resource ID, or an empty ID when no supported property exists.
 static func get_resource_id(resource: Resource, resource_class: StringName = &"") -> StringName:
 	var resolved_class: StringName = resource_class if not resource_class.is_empty() else detect_resource_class(resource)
 	var id_property: StringName = detect_id_property(resource, resolved_class)
@@ -153,6 +163,7 @@ static func get_resource_id(resource: Resource, resource_class: StringName = &""
 		return &""
 	return StringName(str(resource.get(id_property)))
 
+## Returns the configured display text or falls back to the stable resource ID.
 static func get_display_name(resource: Resource, resource_class: StringName = &"") -> String:
 	var resolved_class: StringName = resource_class if not resource_class.is_empty() else detect_resource_class(resource)
 	var schema: Dictionary = get_schema(resolved_class)
@@ -163,10 +174,12 @@ static func get_display_name(resource: Resource, resource_class: StringName = &"
 			return value
 	return String(get_resource_id(resource, resolved_class))
 
+## Returns the category title shown in Data Studio for [param resource_class].
 static func get_category_title(resource_class: StringName) -> String:
 	var schema: Dictionary = get_schema(resource_class)
 	return str(schema.get("title", resource_class)) if not schema.is_empty() else "Other Resources"
 
+## Returns defensive copies of table column definitions for [param resource_class].
 static func get_columns(resource_class: StringName) -> Array[Dictionary]:
 	var schema: Dictionary = get_schema(resource_class)
 	var result: Array[Dictionary] = []
@@ -174,5 +187,6 @@ static func get_columns(resource_class: StringName) -> Array[Dictionary]:
 		result.append(column_data.duplicate(true))
 	return result
 
+## Returns the schema used to create a new resource of [param resource_class].
 static func get_creation_schema(resource_class: StringName) -> Dictionary:
 	return get_schema(resource_class)

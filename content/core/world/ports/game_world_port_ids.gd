@@ -1,4 +1,8 @@
 extends RefCounted
+## Central catalog of restricted world-service port IDs.
+##
+## Features should receive only the ports they require rather than a universal
+## world service locator.
 class_name GameWorldPortIds
 
 const OBJECT_RESOLVE: StringName = &"object.resolve"
@@ -11,5 +15,6 @@ const PERSISTENCE_REGISTER: StringName = &"persistence.register"
 const STREAMING_REGION: StringName = &"streaming.region"
 const ALL: Array[StringName] = [OBJECT_RESOLVE, OBJECT_REGISTER, SPAWN_REQUEST, DESPAWN_REQUEST, TARGETING_QUERY, TIME_SIMULATION, PERSISTENCE_REGISTER, STREAMING_REGION]
 
+## Returns whether [param port_id] belongs to the supported world port catalog.
 static func is_known(port_id: StringName) -> bool:
 	return port_id in ALL

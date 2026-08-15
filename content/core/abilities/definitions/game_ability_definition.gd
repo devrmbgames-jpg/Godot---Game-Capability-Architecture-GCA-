@@ -1,5 +1,10 @@
 @tool
 extends Resource
+## Immutable data-driven definition of an ability.
+##
+## Declares owner requirements, costs, cooldowns, concurrency channels,
+## operations, persistence hints, and validation rules. Owner-specific data lives
+## in [GameAbilityGrant]; activation state lives in [GameAbilityExecution].
 class_name GameAbilityDefinition
 
 # ======= ENUMS =========
@@ -33,9 +38,11 @@ enum SaveExecutionPolicy { CANCEL_ON_LOAD, COMPLETE_BEFORE_SAVE, DISALLOW_SAVE }
 @export_range(1, 1000, 1) var schema_version: int = 1
 
 # ====== PUBLIC ========
+## Returns the explicit cooldown key or falls back to [member ability_id].
 func get_resolved_cooldown_key() -> StringName:
 	return cooldown_key if not cooldown_key.is_empty() else ability_id
 
+## Returns whether the definition and all nested policies are configured correctly.
 func is_valid() -> bool:
 	if ability_id.is_empty() or cooldown_duration < 0.0 or schema_version < 1:
 		return false
