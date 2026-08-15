@@ -1,205 +1,162 @@
-# Пошаговый прототип GCA: персонаж, монстр, дверь, бочка и мина
+# Пошаговый прототип GCA: актуальный API
 
-Этот документ показывает, как с нуля собрать небольшую **играбельную 3D-сцену-прототип** на базе GCA. Цель инструкции — не просто показать отдельные классы, а провести через полный рабочий цикл:
+Этот tutorial собирает небольшую 3D-сцену с Player, Monster, Door, Barrel и Mine на **текущем публичном API GCA**.
+
+Главные маршруты:
 
 ```text
-ввод игрока / решение AI
-→ GameControl...
-→ GameAbilities
-→ Interaction / Targeting
-→ GameDamageRequest / GameEffects
+Input / AI decision
+→ GameControlSource
+→ GameControlEndpoint
+→ GameAbilityLoadout / GameAbilities
+→ Ability Operation
+→ world port / InteractionTarget / DamageReceiver / Effects
+→ Meters / Tags / DeathPolicy
+```
+
+Полные game-specific скрипты находятся в [`example_simple_scene_complete_scripts.md`](./example_simple_scene_complete_scripts.md).
+
+---
+
+## 0. Важные границы текущего API
+
+### Player input не активирует конкретные abilities вручную
+
+Нормальный player path:
+
+```text
+InputAction
+→ GamePlayerInputSource
+→ slot_id
+→ GameControlEndpoint
+→ GameAbilityLoadout.resolve_slot()
+→ grant_handle_id
+→ GameAbilities.activate()
+```
+
+Поэтому в player root **не нужен** `_unhandled_input()` с `abilities.activate(...)` для attack/dodge/mine/interact.
+
+### Interaction — это ability с обеих сторон
+
+```text
+slot.interaction
+→ source-owned ability.interact
+→ GameInteractionAbilityOperation
+→ GameInteractionRequest
+→ GameInteractionTarget
+→ GameInteractionReaction
+→ target-owned ability
+```
+
+`GameInteractionOffer` — только semantic/UI/AI description. Он не содержит `ability_id` или `command_id`.
+
+### World integrations идут через `GameWorldContext`
+
+Для статических объектов мира:
+
+```text
+GameWorldContext.bind_kernel(kernel)
+→ inject world ports
+→ initialize kernel
+→ register GameObjectHandle
+```
+
+World-aware operation получает сервис так:
+
+```gdscript
+var targeting_service: GameTargetingService = (
+	context.get_world_port(GameWorldPortIds.TARGETING_QUERY)
+	as GameTargetingService
+)
+```
+
+Не передавайте `GameTargetingService` в каждую ability через `activation_payload`.
+
+### Effects в текущем API не являются DamageRequests
+
+`GameEffects.apply_effect()` и `advance_time()` работают с `GameEffectDefinition`.
+Периодические `meter_operations` применяются напрямую через `GameMeters.modify_current()`.
+
+То есть текущий Burning example:
+
+```text
+GameEffects.apply_effect(burning)
+→ status.burning
+→ period
+→ meter_operations[Health -5]
 → GameMeters
-→ смерть / реакция объекта
-→ Presentation
+→ GameDeathPolicy, если meter depleted
 ```
 
-После выполнения инструкции получится арена, в которой:
-
-- игрок ходит, атакует, уклоняется, взаимодействует и устанавливает мины;
-- монстр патрулирует область, замечает игрока, преследует и атакует его;
-- игрок и монстр имеют здоровье и получают урон через единый GCA damage pipeline;
-- дверь открывается и закрывается через generic interaction ability и target-owned abilities;
-- бочка получает урон, взрывается и может вызвать цепную реакцию;
-- мина устанавливается игроком, вооружается, может быть уничтожена уроном, взрывается и накладывает `Горение`;
-- все игровые объекты имеют стабильные GCA identity/handles;
-- динамически созданные объекты регистрируются в сервисах мира;
-- эффекты и способности реально обновляются во времени.
-
-> Важно: GCA предоставляет архитектурные примитивы — объекты, capability, abilities, effects, damage, control, interaction, targeting и т. д. Конкретное поведение вроде «сделать выпад на 4 метра», «патрулировать эти три точки» или «создать сцену мины» остаётся игровой логикой вашего проекта и реализуется небольшими glue-скриптами.
+Он **не проходит через `GameDamageReceiver`**. Если проекту нужен combat-aware DoT с resistance/friendly-fire/damage log, это отдельная gameplay operation/adapter поверх текущего Effect API.
 
 ---
 
-## 0. Что будем использовать из GCA
+# 1. Data Studio
 
-Основные классы, с которыми вы столкнётесь:
-
-- `GameObjectKernel` — ядро игрового объекта;
-- `GameObjectIdentity` — stable ID и definition ID объекта;
-- `GameObjectContext` — runtime-контекст объекта и доступ к capability;
-- `GameObjectHandle` — безопасная ссылка на игровой объект;
-- `GameObjectResolver` — разрешение stable ID/handle в мире;
-- `GameTagContainer` — теги объекта;
-- `GameAttributes` — вычисляемые атрибуты;
-- `GameMeters` — изменяемые шкалы, например здоровье;
-- `GameAbilities` — выдача и активация способностей;
-- `GameAbilityLoadout` — логические ability slots;
-- `GameEffects` — эффекты и статусы;
-- `GameDamageReceiver` — входная точка получения урона;
-- `GameDamageRequest` — стандартный запрос на нанесение урона;
-- `GameDeathPolicy` — переход объекта в состояние смерти;
-- `GameControlArbiter` — владелец control channels;
-- `GameControlEndpoint` — endpoint управления;
-- `GamePlayerInputSource` — источник управления от игрока;
-- `GameMockAIControlSource` — простой источник управления для AI-прототипа;
-- `GameCharacterMotor` — движение персонажа;
-- `GameInteractionSource` — инициатор semantic interaction requests;
-- `GameInteractionTarget` — объект, принимающий interaction requests;
-- `GameInteractionRequest` — запрос с optional semantic intent;
-- `GameInteractionReaction` — target-local mapping `intent → ability`;
-- `GameInteractionOffer` — semantic описание доступного взаимодействия для UI/AI;
-- `GameInteractionAbilityOperation` — generic operation «взаимодействовать с чем-то»;
-- `GameTargetingService` — выбор GCA-целей по миру;
-- `GameExecutionContext` — цепочка причин/операций;
-- `GamePresentationCueReceiver` — presentation/reaction слой;
-- `GameCommandResult` — стандартный результат команды.
-
-### GCA Data Studio
-
-В репозитории находится редакторская утилита:
+Включите:
 
 ```text
-res://addons/gca_data_studio/
+addons/gca_data_studio/
 ```
 
-Для data-driven частей прототипа используйте **GCA Data Studio**, а не создавайте все `.tres` вручную.
+Data Studio создаёт текущие:
 
-Через Data Studio удобно создавать и редактировать определения:
+```text
+GameAttributeDefinition
+GameMeterDefinition
+GameEffectDefinition
+GameAbilityDefinition
+```
 
-- атрибутов;
-- meters;
-- abilities;
-- effects;
-- связанных data-ресурсов GCA.
+Категории доступны даже если в проекте ещё нет definitions.
 
-После создания ресурса сохраните его в `res://content/...` и назначьте соответствующему runtime-компоненту через Inspector.
-
-В этой инструкции Data Studio используется для **определений**, а GDScript — только для поведения конкретной игры.
+Сложные поля (`requirements`, `costs`, `operations`, effect dictionaries) редактируются стандартным Godot Inspector.
 
 ---
 
-# 1. Рекомендуемая структура файлов
+# 2. Общие definitions
 
-Создайте каталог:
+## 2.1 Attributes
 
-```text
-res://content/gameplay/simple_scene/
-```
-
-Рекомендуемая структура:
-
-```text
-res://content/gameplay/simple_scene/
-├── world/
-│   ├── simple_scene.tscn
-│   └── game_simple_scene.gd
-│
-├── player/
-│   ├── ent_player_simple.tscn
-│   └── game_player_simple.gd
-│
-├── monster/
-│   ├── ent_monster_simple.tscn
-│   └── game_monster_simple.gd
-│
-├── door/
-│   ├── prop_door_simple.tscn
-│   ├── game_door_simple.gd
-│   └── game_door_set_open_operation_simple.gd
-│
-├── barrel/
-│   ├── prop_barrel_simple.tscn
-│   └── game_barrel_simple.gd
-│
-├── mine/
-│   ├── prop_mine_simple.tscn
-│   └── game_mine_simple.gd
-│
-├── abilities/
-│   ├── game_attack_operation_simple.gd
-│   ├── game_dodge_operation_simple.gd
-│   └── game_place_mine_operation_simple.gd
-│
-└── shared/
-    ├── attributes/
-    ├── meters/
-    ├── abilities/
-    └── effects/
-```
-
-Названия приведены как пример. Важно сохранять разделение:
-
-- **definition/data** — `.tres`;
-- **runtime GCA-компоненты** — дочерние узлы `GameObjectKernel`;
-- **game-specific orchestration** — скрипт корневого узла сцены.
-
----
-
-# 2. Сначала создаём общие GCA-данные
-
-Не начинайте с персонажа. Сначала создайте набор данных, который затем смогут переиспользовать игрок, монстр, дверь, бочка и мина.
-
-## 2.1. Атрибуты
-
-Через GCA Data Studio создайте как минимум:
+Создайте:
 
 ```text
 simple.attribute.movement_speed
 simple.attribute.max_health
-simple.attribute.attack_damage
 ```
 
-Для прототипа можно использовать значения:
+Пример:
 
 ```text
-movement_speed = 5.0
-max_health     = 100.0
-attack_damage  = 25.0
+movement_speed.default_base = 5.0
+max_health.default_base     = 100.0
 ```
 
-GCA вычисляет итоговый атрибут по модели:
+Формула runtime attribute остаётся:
 
 ```text
 (base + add) * (1.0 + increase)
 ```
 
-Поэтому скорость, здоровье и урон в дальнейшем можно модифицировать эффектами без изменения кода персонажа.
+## 2.2 Health meter
 
-## 2.2. Health meter
-
-Создайте meter:
+Создайте `GameMeterDefinition`:
 
 ```text
-simple.meter.health
+meter_id              = simple.meter.health
+initial_policy        = FULL
+maximum_policy        = ATTRIBUTE
+maximum_attribute_id  = simple.attribute.max_health
+minimum               = 0
+maximum_change_policy = CLAMP_ONLY
+depletion_threshold   = 0
+save_current          = true
 ```
 
-Настройте его так, чтобы:
+## 2.3 Tags
 
-- максимум зависел от `simple.attribute.max_health` или соответствовал ему;
-- начальное значение было полным (`FULL`);
-- состояние `0` считалось depletion.
-
-Идея:
-
-```text
-MaxHealth attribute = 100
-Health meter        = 100 / 100
-```
-
-Атрибут отвечает на вопрос **«сколько максимум?»**, meter — **«сколько сейчас?»**.
-
-## 2.3. Теги
-
-Для простого прототипа заранее договоритесь о тегах:
+Для примера:
 
 ```text
 object.entity.player
@@ -207,33 +164,19 @@ object.entity.monster
 object.prop.door
 object.prop.barrel
 object.trap.mine
-
 faction.player
 faction.monster
-
 state.open
 status.burning
-status.invulnerable
-
 damage.melee
 damage.explosion
-damage.fire
 ```
 
-Тег сам по себе ничего «магически» не делает. Например, наличие `status.invulnerable` станет неуязвимостью только тогда, когда ваша damage policy/receiver действительно проверяет этот тег и отклоняет урон.
+Если `GameTagContainer.reject_unknown_tags == true`, добавьте project-specific tags в используемый `GameTagCatalog`.
 
-Для двери `state.open` используется обычными ability requirements:
+## 2.4 Abilities
 
-```text
-door.open  blocked_owner_tags  = [state.open]
-door.close required_owner_tags = [state.open]
-```
-
-Так доступность interaction reaction вычисляется Ability System, а не ручным переключением offers.
-
-## 2.4. Ability definitions
-
-Через Data Studio создайте:
+Создайте:
 
 ```text
 simple.ability.player.attack
@@ -245,239 +188,140 @@ simple.ability.door.open
 simple.ability.door.close
 ```
 
-Для каждой ability definition назначьте соответствующую operation/game-specific реализацию.
-
-Для прототипа разумны такие параметры:
+Operations:
 
 ```text
-Player Attack:
-    damage: 25
-    range: 2.0 m
-    cooldown: 0.45 s
-
-Player Dodge:
-    distance: 4.0 m
-    duration: 0.22 s
-    cooldown: 0.8 s
-
-Place Mine:
-    cooldown: 2.0 s
-
-Player Interact:
-    operation: GameInteractionAbilityOperation
-
-Monster Attack:
-    damage: 15
-    range: 1.8 m
-    cooldown: 1.0 s
-
-Door Open:
-    blocked_owner_tags = [state.open]
-    operation = GameDoorSetOpenOperationSimple(open = true)
-
-Door Close:
-    required_owner_tags = [state.open]
-    operation = GameDoorSetOpenOperationSimple(open = false)
+player.attack      → GameAttackOperationSimple
+dodge              → GameDodgeOperationSimple
+place_mine         → GamePlaceMineOperationSimple
+player.interact    → GameInteractionAbilityOperation
+monster.attack     → GameAttackOperationSimple
+door.open          → GameDoorSetOpenOperationSimple(open = true)
+door.close         → GameDoorSetOpenOperationSimple(open = false)
 ```
 
-Точные поля game-specific operations зависят от реализации. `required_owner_tags` и `blocked_owner_tags` — поля `GameAbilityDefinition`.
-
-## 2.5. Эффект «Горение»
-
-Создайте effect definition:
+Door requirements:
 
 ```text
-simple.effect.burning
+simple.ability.door.open
+blocked_owner_tags = [state.open]
+
+simple.ability.door.close
+required_owner_tags = [state.open]
 ```
 
-Рекомендуемое поведение:
+Это автоматически делает `open` доступным только в закрытом состоянии, а `close` — только в открытом.
+
+## 2.5 Burning
+
+Создайте `GameEffectDefinition`:
 
 ```text
-duration = 4.0 s
-period   = 1.0 s
-fire damage per tick = 5
-runtime tag = status.burning
+effect_id               = simple.effect.burning
+duration_policy         = DURATION
+duration                = 4.0
+period                  = 1.0
+execute_period_on_apply = false
+stacking_policy         = REFRESH_DURATION
+stack_limit             = 1
+granted_tags            = [status.burning]
+meter_operations        = [{ meter_id = simple.meter.health, delta = -5.0 }]
 ```
 
-Лучше проводить периодический урон не прямым изменением health meter, а через тот же damage pipeline:
-
-```text
-Burning tick
-→ GameDamageRequest
-→ GameDamageReceiver
-→ Health meter
-→ DeathPolicy
-```
-
-Так melee, explosion и fire damage проходят через одну точку правил.
+Dictionary key для meter operation в текущем runtime — `meter_id` + `delta`.
 
 ---
 
-# 3. Основная сцена
+# 3. World composition
 
-Создайте:
-
-```text
-res://content/gameplay/simple_scene/world/simple_scene.tscn
-```
-
-## 3.1. Дерево сцены
-
-Минимальная структура:
+Рекомендуемая сцена:
 
 ```text
 SimpleScene (Node3D)
 ├── WorldServices (Node)
 │   ├── GameObjectResolver
-│   └── GameTargetingService
-│
-├── LevelGeometry (Node3D)
-│   └── Floor (StaticBody3D)
-│       ├── MeshInstance3D
-│       └── CollisionShape3D
-│
+│   ├── GameSpawnService
+│   ├── GameTargetingService
+│   ├── GameTimeService
+│   ├── GamePersistenceCoordinator
+│   └── GameWorldContext
+├── LevelGeometry
 ├── NavigationRegion3D
-│
-├── PatrolPoints (Node3D)
-│   ├── PointA (Marker3D)
-│   ├── PointB (Marker3D)
-│   └── PointC (Marker3D)
-│
-├── SpawnedMines (Node3D)
-├── Player (instance ent_player_simple.tscn)
-├── Monster (instance ent_monster_simple.tscn)
-├── Door (instance prop_door_simple.tscn)
-├── Barrels (Node3D)
-│   ├── Barrel01
-│   └── Barrel02
-│
-└── HUD (CanvasLayer)
+├── PatrolPoints
+├── SpawnedMines
+├── Player
+├── Monster
+├── Door
+└── Barrels
 ```
 
-## 3.2. Не делайте пол только MeshInstance3D
-
-У пола обязательно должен быть физический body и collision:
+Настройте ссылки:
 
 ```text
-Floor (StaticBody3D)
-├── MeshInstance3D
-└── CollisionShape3D
+GameSpawnService.object_resolver    = GameObjectResolver
+GameSpawnService.default_parent     = SpawnedMines
+GameTargetingService.object_resolver = GameObjectResolver
+
+GameWorldContext.object_resolver          = GameObjectResolver
+GameWorldContext.spawn_service            = GameSpawnService
+GameWorldContext.targeting_service        = GameTargetingService
+GameWorldContext.time_service             = GameTimeService
+GameWorldContext.persistence_coordinator  = GamePersistenceCoordinator
 ```
 
-Иначе персонажи будут визуально находиться над «полом», который физически не существует.
+`region_streaming_service` можно оставить `null`, если streaming не используется.
 
-## 3.3. Collision layers
+## 3.1 Статические GCA objects
 
-Для прототипа можно договориться так:
+Для Player/Monster/Door/Barrels выставьте в Inspector:
 
 ```text
-Layer 1 — World
-Layer 2 — Player
-Layer 3 — Monster
-Layer 4 — Damageable / Interactable props
-Layer 5 — Hazard / Trigger
+GameObjectKernel.auto_initialize = false
 ```
 
-Это не требование GCA, а удобная схема проекта.
+Это важно: `GameWorldContext.bind_kernel()` принимает только `UNINITIALIZED` kernel, потому что world ports должны быть injected **до** initialization.
 
-Проверяйте одновременно:
+В `GameSimpleScene._ready()` bind-ите каждый статический kernel через `world_context.bind_kernel(...)`.
 
-- `collision_layer` объекта;
-- `collision_mask` Area/CharacterBody;
-- monitoring у `Area3D`;
-- наличие `CollisionShape3D`.
+После `bind_kernel()` не вызывайте `object_resolver.register_handle()` второй раз — world context уже регистрирует handle.
 
-## 3.4. World services
+## 3.2 Runtime spawn
 
-`GameObjectResolver` и `GameTargetingService` относятся к миру, поэтому держите их в основной сцене и **передавайте ссылки дочерним объектам явно**.
-
-Не делайте внутри мины или монстра:
+Для динамических объектов используйте:
 
 ```gdscript
-get_parent().get_parent().find_child(...)
+GameSpawnService.spawn(...)
+GameSpawnService.despawn(...)
 ```
 
-Основная сцена знает своих детей и назначает зависимости напрямую.
+`spawn()` создаёт сцену, находит direct-child `GameObjectKernel`, инициализирует его, регистрирует handle и возвращает `GameCommandResult` с `GameObjectHandle` в payload.
 
-Дочерние сцены сообщают наверх через signals.
-
-## 3.5. Регистрация GCA-объектов
-
-После появления объекта в дереве получите его context и handle:
-
-```gdscript
-var context: GameObjectContext = kernel.get_object_context()
-var handle: GameObjectHandle = context.get_object_handle()
-object_resolver.register_handle(handle)
-```
-
-Нужно регистрировать как статические, так и динамические объекты, если world service должен уметь их разрешать.
-
-Особенно важно для:
-
-- Player;
-- Monster;
-- Door;
-- Barrel;
-- Mine.
-
-При удалении динамической мины обеспечьте симметричное снятие регистрации согласно API resolver вашего текущего GCA.
-
-## 3.6. Динамические мины
-
-`SpawnedMines` нужен как явный контейнер:
+Для Mine scene настройте identity как ephemeral runtime identity:
 
 ```text
-SimpleScene
-└── SpawnedMines
+GameObjectIdentity.stable_id = ""
+GameObjectIdentity.allow_runtime_generated_id = true
 ```
 
-Когда ability игрока создаёт мину, основная сцена или специальный spawn service должен:
+Тогда каждый spawned instance получит свой `runtime.<instance_id>` и не будет конфликтовать с предыдущей миной. Если мина должна переживать save/load, передавайте `stable_id` в `GameSpawnService.spawn()` из persistence-aware gameplay layer вместо runtime-generated ID.
 
-1. instantiate `prop_mine_simple.tscn`;
-2. добавить её в `SpawnedMines`;
-3. передать owner/instigator handle;
-4. передать `GameObjectResolver`;
-5. передать `GameTargetingService`;
-6. дождаться готовности `GameObjectKernel`;
-7. зарегистрировать handle мины;
-8. вызвать `arm()` или разрешить мине вооружиться самой.
+`despawn()` вызывает resolver policy (`mark_unresolved` или `invalidate_permanently`) и освобождает root.
 
-Это предотвращает типичную ошибку: мина существует визуально, но не связана с сервисами мира и потому никого не находит.
+### Текущая оговорка SpawnService
 
-## 3.7. Navigation
+`GameWorldContext.bind_kernel()` inject-ит world ports. Текущий `GameSpawnService.spawn()` самостоятельно инициализирует kernel, но **не inject-ит `GameWorldContext.get_world_ports()`**.
 
-Для монстра добавьте `NavigationRegion3D` и запеките navmesh.
-
-Проверьте, что:
-
-- пол входит в навигационную геометрию;
-- Player и Monster стоят на navmesh;
-- двери/стены учитываются согласно вашей навигационной схеме;
-- patrol points находятся на доступной области.
+Поэтому в этом учебном Mine example world dependencies, нужные runtime-мине после spawn, передаются явно (`targeting_service`, `spawn_service`). Не предполагайте, что `spawned_mine.context.get_world_port(...)` уже заполнен.
 
 ---
 
-# 4. Сцена персонажа
-
-Создайте:
-
-```text
-res://content/gameplay/simple_scene/player/ent_player_simple.tscn
-```
-
-## 4.1. Дерево узлов
+# 4. Player composition
 
 ```text
 Player (CharacterBody3D)
-├── Visual (Node3D / MeshInstance3D)
 ├── CollisionShape3D
-├── CameraPivot (Node3D)
-│   └── SpringArm3D
-│       └── Camera3D
-├── MinePlacementMarker (Marker3D)
-│
-├── GameObjectKernel
+├── Camera...
+├── GameObjectKernel (auto_initialize = false)
 │   ├── GameObjectIdentity
 │   ├── GameTagContainer
 │   ├── GameAttributes
@@ -492,153 +336,29 @@ Player (CharacterBody3D)
 │   ├── GameDamageReceiver
 │   ├── GameDeathPolicy
 │   └── GamePresentationCueReceiver
-│
 └── GamePlayerInputSource
 ```
 
-Главный принцип:
+## 4.1 Base grants
+
+В `GameAbilities.initial_abilities` добавьте четыре player abilities. `GameAbilities` выдаст grants во время initialization.
+
+## 4.2 Loadout
+
+В `GameAbilityLoadout.initial_slots` создайте `GameAbilitySlotDefinition`:
 
 ```text
-Player root
-→ координирует
-GameObjectKernel children
-→ предоставляют capability
+slot.primary      → simple.ability.player.attack
+slot.mobility     → simple.ability.player.dodge
+slot.utility_1    → simple.ability.player.place_mine
+slot.interaction  → simple.ability.player.interact
 ```
 
-Не заставляйте capability-узлы искать родителя и вызывать его методы.
+Initial slot definition не grant-ит ability; она должна уже присутствовать в `GameAbilities.initial_abilities` или быть выдана другим source.
 
----
+## 4.3 Input bindings
 
-## 4.2. Identity и теги игрока
-
-В `GameObjectIdentity` задайте, например:
-
-```text
-stable_id     = simple.player
-definition_id = simple.entity.player
-```
-
-В `GameTagContainer`:
-
-```text
-object.entity.player
-faction.player
-```
-
-Если в будущем будет несколько игроков, не используйте один и тот же runtime stable ID для каждого экземпляра.
-
----
-
-## 4.3. Здоровье игрока
-
-В `GameAttributes` назначьте definition:
-
-```text
-simple.attribute.max_health
-```
-
-В `GameMeters` назначьте:
-
-```text
-simple.meter.health
-```
-
-В сцене обязательно должен присутствовать `GameDamageReceiver`.
-
-Без него объект может иметь красивый health meter, но запросы targeting по capability `GameCapabilityIds.DAMAGE_RECEIVER` не будут считать его damageable-целью.
-
-Также добавьте `GameDeathPolicy`.
-
-Рабочий путь:
-
-```text
-GameDamageRequest(25)
-→ GameDamageReceiver
-→ simple.meter.health: 100 → 75
-→ если 0
-→ GameDeathPolicy
-```
-
-Не уменьшайте здоровье обычной атаки так:
-
-```gdscript
-# Плохо для боевого pipeline
-health -= damage
-```
-
-Проводите боевой урон через `GameDamageReceiver`.
-
----
-
-## 4.4. Контроллер игрока
-
-`GamePlayerInputSource` подключите к:
-
-- `GameControlEndpoint`;
-- `GameControlArbiter`.
-
-Каркас подключения:
-
-```gdscript
-func _attach_player_control() -> void:
-    if kernel == null:
-        return
-    if kernel.get_object_context() == null:
-        return
-
-    player_input_source.set_execution_context_factory(
-        func(cause: StringName, label: String) -> GameExecutionContext:
-            return kernel.get_object_context().create_root_execution_context(cause, label)
-    )
-
-    var result: GameCommandResult = player_input_source.attach(
-        control_endpoint,
-        control_arbiter
-    )
-
-    if result.is_success():
-        player_input_source.request_control()
-```
-
-Для обычного player input достаточно каналов:
-
-```text
-movement
-abilities
-```
-
-Interaction-кнопка проходит через ability channel как обычный логический slot. Отдельный target-specific input path не нужен.
-
-Если временная способность забрала movement channel, после завершения она должна его освободить, чтобы arbiter восстановил предыдущего владельца.
-
----
-
-## 4.5. Движение и input bindings игрока
-
-Для движения используйте `GameCharacterMotor` через control pipeline.
-
-В `GameCharacterMotor` укажите:
-
-```text
-speed_attribute_id = simple.attribute.movement_speed
-```
-
-Тогда изменение movement speed эффектом автоматически отражается на движении без переписывания player script.
-
-Пример InputMap:
-
-```text
-move_forward  = W
-move_back     = S
-move_left     = A
-move_right    = D
-interact      = E
-attack        = Mouse1
-dodge         = Space
-place_mine    = Q
-```
-
-`GamePlayerInputSource.ability_input_bindings` должен связывать физический input с логическими slots, например:
+В `GamePlayerInputSource.ability_input_bindings`:
 
 ```text
 attack      → slot.primary
@@ -647,1747 +367,295 @@ dodge       → slot.mobility
 place_mine  → slot.utility_1
 ```
 
-А `GameAbilityLoadout` уже связывает slot с конкретным runtime grant. Для `slot.interaction` базовый grant — `simple.ability.player.interact`.
+InputMap, например:
 
-Названия action можно выбрать свои, но ability definition не должна знать кнопку.
+```text
+attack     = Mouse1
+interact   = E
+dodge      = Space
+place_mine = Q
+```
 
----
+Не добавляйте эти actions в `GameAbilityDefinition`.
 
-## 4.6. Runtime scheduler игрока
+## 4.4 Control attach
 
-Abilities и Effects должны обновляться во времени.
+Root player script только подключает source:
 
-В корневом player script добавьте цикл уровня объекта:
+```gdscript
+player_input_source.set_execution_context_factory(
+	func(cause: StringName, label: String) -> GameExecutionContext:
+		return kernel.get_object_context().create_root_execution_context(cause, label)
+)
+
+var result := player_input_source.attach(control_endpoint, control_arbiter)
+if result.is_success():
+	player_input_source.request_control()
+```
+
+Attack/dodge/place-mine больше не обрабатываются в `_unhandled_input()`.
+
+## 4.5 Local scheduler
+
+Локальное продвижение времени остаётся допустимым:
 
 ```gdscript
 func _physics_process(delta: float) -> void:
-    if abilities != null:
-        abilities.advance_time(delta)
-
-    if effects != null and kernel != null and kernel.get_object_context() != null:
-        var execution_context: GameExecutionContext = (
-            kernel.get_object_context().create_root_execution_context(
-                &"simple.player.tick",
-                "Simple player scheduler"
-            )
-        )
-        effects.advance_time(delta, execution_context)
-
-    if kernel != null:
-        kernel.process_execution_queue()
+	abilities.advance_time(delta)
+	effects.advance_time(
+		delta,
+		kernel.get_object_context().create_root_execution_context(
+			&"simple.player.effects_tick",
+			"Player effects tick"
+		)
+	)
+	kernel.process_execution_queue()
 ```
-
-Этот scheduler намеренно остаётся локальной ответственностью owner/subscene. GCA не требует одного глобального тика: локальный цикл удобен для профилирования, изоляции тяжёлых сущностей и project-specific стратегии исполнения.
-
-Если забыть `effects.advance_time()`, периодический эффект `Горение` может быть добавлен, но его duration/periodic logic не будет нормально продвигаться.
 
 ---
 
-# 5. Абилка игрока: Атака
+# 5. Attack operation
 
-## 5.1. Definition
-
-В Data Studio создайте:
+`GameAttackOperationSimple` получает всё необходимое из activation request и owner context:
 
 ```text
-simple.ability.player.attack
+request.owner_handle
+→ owner root Node3D
+→ owner context
+→ GameWorldPortIds.TARGETING_QUERY
+→ GameTargetingService
 ```
 
-Добавьте custom operation, например:
+Не используйте payload `actor_node` / `targeting_service`.
 
-```text
-GameAttackOperationSimple
-```
-
-Operation отвечает за игровое действие «найти цели и отправить им damage request».
-
-## 5.2. Активация ability
-
-Обычный helper выглядит так:
+Target query:
 
 ```gdscript
-func activate_ability(ability_id: StringName) -> GameCommandResult:
-    var context: GameObjectContext = kernel.get_object_context()
-    if context == null:
-        return GameCommandResult.invalid_target("Player context is unresolved.")
-
-    var execution_context: GameExecutionContext = (
-        context.create_root_execution_context(
-            &"simple.player.ability",
-            "Player ability activation"
-        )
-    )
-
-    var request := GameAbilityActivationRequest.new(
-        ability_id,
-        context.get_object_handle(),
-        execution_context,
-        context.get_object_handle()
-    )
-
-    return abilities.activate(request)
-```
-
-Для production player input этот helper обычно не нужен: `GamePlayerInputSource → slot → GameControlEndpoint → GameAbilities` уже выполняет activation. Helper полезен для scripted/game-specific glue.
-
-## 5.3. Поиск цели
-
-Для простого melee-прототипа operation может использовать `GameTargetingService.query_sphere()`.
-
-Каркас:
-
-```gdscript
-var query: Dictionary = targeting_service.query_sphere(
-    actor.global_position,
-    attack_radius,
-    GameCapabilityIds.DAMAGE_RECEIVER,
-    required_tags,
-    excluded_ids
+var query := targeting_service.query_sphere(
+	actor.global_position,
+	attack_radius,
+	GameCapabilityIds.DAMAGE_RECEIVER,
+	required_tags,
+	[source_handle.get_stable_id()]
 )
 ```
 
-Для атаки игрока можно потребовать:
+Каждой цели отправляется `GameDamageRequest` через `GameDamageReceiver.apply_damage()`.
+
+---
+
+# 6. Dodge operation
+
+Текущий `GameCharacterMotor` не предоставляет готовую timed dash API на несколько метров.
+
+Поэтому complete companion использует **prototype fallback**: operation получает owner root как `CharacterBody3D` и делает один collision-aware `move_and_collide()`.
+
+Это устраняет callback payload, но не является production dodge. Production evolution — отдельный movement/control adapter с временным ownership и cleanup.
+
+---
+
+# 7. Mine placement
+
+`GamePlaceMineOperationSimple` получает:
 
 ```text
-faction.monster
+owner_context.get_world_port(GameWorldPortIds.SPAWN_REQUEST)
+→ GameSpawnService
 ```
 
-или использовать отдельные правила faction/friendly fire.
+Затем:
 
-## 5.4. Нанесение урона
-
-Для каждой найденной цели получите capability:
-
-```gdscript
-var receiver: GameDamageReceiver = target_context.get_capability(
-    GameCapabilityIds.DAMAGE_RECEIVER
-) as GameDamageReceiver
+```text
+spawn_service.spawn(...)
+→ GameCommandResult.payload = GameObjectHandle
+→ handle.get_root() as GameMineSimple
+→ assign owner/instigator + explicit runtime dependencies
+→ arm_after_delay()
 ```
 
-Создайте запрос:
+Не передавайте `spawn_mine_callable` через activation payload.
+
+---
+
+# 8. Monster
+
+Monster использует тот же control endpoint.
+
+Для атаки:
 
 ```gdscript
-var damage_tags: Array[StringName] = [
-    &"damage.melee"
-]
-
-var request := GameDamageRequest.new(
-    source_handle,
-    instigator_handle,
-    target_handle,
-    attack_damage,
-    damage_tags,
-    execution_context
+ai_control_source.use_ability(
+	&"simple.ability.monster.attack",
+	[],
+	execution_context
 )
-
-receiver.apply_damage(request)
 ```
 
-Таким образом ability не знает внутреннее устройство здоровья монстра.
+Не вызывайте `monster.abilities.activate()` напрямую из AI state machine и не передавайте actor/targeting payload.
 
 ---
 
-# 6. Абилка игрока: Уклонение
+# 9. Interaction / Door
 
-Создайте в Data Studio:
-
-```text
-simple.ability.player.dodge
-```
-
-## 6.1. Что должна делать operation
-
-Для первого прототипа:
-
-1. определить направление движения игрока;
-2. временно перехватить movement control с большим priority;
-3. начать короткое перемещение/рывок;
-4. при необходимости добавить временный статус `status.invulnerable`;
-5. дождаться окончания dodge duration;
-6. убрать статус;
-7. освободить временное управление;
-8. позволить `GameControlArbiter` вернуть канал `GamePlayerInputSource`.
-
-Схема:
+Door composition:
 
 ```text
-PlayerInput owns movement
-        ↓
-Dodge ability временно preempt movement
-        ↓
-рывок
-        ↓
-release movement
-        ↓
-PlayerInput снова владеет movement
-```
-
-## 6.2. Не оставляйте control channel захваченным
-
-Очень частая ошибка:
-
-```text
-уклонение сработало один раз
-→ после этого персонаж больше не ходит
-```
-
-Причина — временный source/operation не освободил канал.
-
-## 6.3. Неуязвимость
-
-Если используете `status.invulnerable`, добавьте проверку в правила получения урона.
-
-Просто добавить тег недостаточно: damage policy должна отклонять incoming `GameDamageRequest` при этом теге.
-
-Для самого первого прототипа можно сначала сделать dodge **без i-frames**, убедиться, что control ownership корректно возвращается, и только затем добавить неуязвимость.
-
----
-
-# 7. Абилка игрока: Установка мины
-
-Создайте:
-
-```text
-simple.ability.player.place_mine
-```
-
-## 7.1. MinePlacementMarker
-
-На player scene уже есть:
-
-```text
-MinePlacementMarker (Marker3D)
-```
-
-Разместите его примерно в 1–1.5 метрах перед персонажем.
-
-## 7.2. Не заставляйте ability знать всю Main Scene
-
-Хороший вариант:
-
-```text
-PlaceMineOperation
-→ emit/request spawn mine
-→ Player или MainScene получает запрос
-→ MainScene создаёт mine instance
-```
-
-Либо operation получает заранее внедрённый spawn service/callable.
-
-Не делайте поиск основной сцены через длинную цепочку `get_parent()`.
-
-## 7.3. Что передать созданной мине
-
-При создании передайте:
-
-```text
-owner_handle      = handle игрока
-instigator_handle = handle игрока
-targeting_service = world targeting service
-object_resolver   = world resolver
-```
-
-После добавления в дерево зарегистрируйте GCA handle мины.
-
-## 7.4. Защита от мгновенного самоподрыва
-
-Мина должна сначала быть невооружённой:
-
-```text
-spawn
-→ 0.35 s arming delay
-→ trigger enabled
-→ armed = true
-```
-
-Также исключайте `owner_handle` из explosion/trigger rules, если дизайн не предусматривает self damage.
-
----
-
-# 8. Монстр
-
-Создайте:
-
-```text
-res://content/gameplay/simple_scene/monster/ent_monster_simple.tscn
-```
-
-## 8.1. Дерево узлов
-
-```text
-Monster (CharacterBody3D)
-├── Visual
-├── CollisionShape3D
-├── NavigationAgent3D
-│
-├── GameObjectKernel
-│   ├── GameObjectIdentity
-│   ├── GameTagContainer
-│   ├── GameAttributes
-│   ├── GameMeters
-│   ├── GameEffects
-│   ├── GameAbilities
-│   ├── GameControlArbiter
-│   ├── GameControlEndpoint
-│   ├── GameCharacterMotor
-│   ├── GameDamageReceiver
-│   ├── GameDeathPolicy
-│   └── GamePresentationCueReceiver
-│
-└── GameMockAIControlSource
-```
-
-Если Monster/NPC должен взаимодействовать с миром, добавьте ему `GameInteractionSource` и generic interaction ability. Если он сам является interactable NPC, можно одновременно добавить `GameInteractionTarget`: source и target используют разные exclusive capabilities и не конфликтуют.
-
-## 8.2. Identity и здоровье
-
-Пример:
-
-```text
-stable_id     = simple.monster.001
-definition_id = simple.entity.monster
-```
-
-Tags:
-
-```text
-object.entity.monster
-faction.monster
-```
-
-Для прототипа:
-
-```text
-MaxHealth = 100
-Health    = 100 / 100
-```
-
-Обязательно добавьте `GameDamageReceiver`, иначе attack ability игрока, фильтрующая цели через `DAMAGE_RECEIVER`, не увидит монстра.
-
----
-
-## 8.3. Контроллер монстра
-
-Подключите `GameMockAIControlSource` к тем же control primitives:
-
-```gdscript
-var result: GameCommandResult = ai_control_source.attach(
-    control_endpoint,
-    control_arbiter
-)
-
-if result.is_success():
-    ai_control_source.request_control()
-```
-
-AI и Player используют одну архитектуру управления. Разница только в источнике intent.
-
----
-
-## 8.4. Состояния AI
-
-Для прототипа достаточно четырёх состояний:
-
-```gdscript
-enum State {
-    PATROL,
-    CHASE,
-    ATTACK,
-    DEAD,
-}
-```
-
-Рекомендуемые дистанции:
-
-```text
-detect_distance = 10.0
-lose_distance   = 14.0
-attack_distance = 1.8
-```
-
-`lose_distance` специально больше `detect_distance`: это hysteresis, чтобы AI не переключался между PATROL/CHASE каждый кадр на границе радиуса.
-
----
-
-## 8.5. Патрулирование определённой области
-
-В Main Scene есть:
-
-```text
-PatrolPoints
-├── PointA
-├── PointB
-└── PointC
-```
-
-Main Scene передаёт массив точек монстру.
-
-Монстр не должен искать их через родителей.
-
-Алгоритм:
-
-```text
-PATROL
-→ выбрать текущую Marker3D
-→ NavigationAgent3D.target_position = marker.global_position
-→ двигаться к next_path_position
-→ дошёл
-→ выбрать следующую точку
-```
-
-Для случайного патруля можно выбирать следующую точку случайно, а для предсказуемого — циклически:
-
-```text
-A → B → C → A
-```
-
-## 8.6. Движение через AI control source
-
-Когда есть направление:
-
-```gdscript
-var execution_context: GameExecutionContext = (
-    kernel.get_object_context().create_root_execution_context(
-        &"simple.monster.move",
-        "Monster movement"
-    )
-)
-
-ai_control_source.move(direction, 1.0, execution_context)
-```
-
-Когда надо остановиться:
-
-```gdscript
-ai_control_source.stop(execution_context)
-```
-
-Не записывайте `velocity` одновременно из AI script и `GameCharacterMotor`, иначе получите две конкурирующие системы движения.
-
----
-
-## 8.7. Преследование игрока
-
-Main Scene передаёт монстру ссылку/handle игрока.
-
-Логика:
-
-```text
-если player distance <= detect_distance
-    PATROL → CHASE
-
-если CHASE
-    NavigationAgent target = player position
-
-если distance <= attack_distance
-    CHASE → ATTACK
-
-если distance > lose_distance
-    CHASE → PATROL
-```
-
-Для полноценного production AI позже можно заменить этот state machine на GOAP/другой planner, не меняя GCA-контракты движения и abilities.
-
----
-
-# 9. Абилка монстра: Атака
-
-Создайте:
-
-```text
-simple.ability.monster.attack
-```
-
-Используйте тот же принцип, что у player attack:
-
-```text
-AI принимает решение атаковать
-→ GameAbilities.activate()
-→ attack operation
-→ targeting
-→ GameDamageRequest
-→ Player.GameDamageReceiver
-```
-
-Для target rules монстра используйте `faction.player`.
-
-Нельзя делать:
-
-```gdscript
-player.health -= 15
-```
-
-Монстр не должен знать, где игрок хранит здоровье.
-
-При состоянии `ATTACK` AI:
-
-1. останавливает движение;
-2. активирует `simple.ability.monster.attack`;
-3. получает `GameCommandResult`;
-4. cooldown ability предотвращает спам;
-5. если игрок вышел из attack distance — снова `CHASE`.
-
----
-
-# 10. Смерть игрока и монстра
-
-Смерть — отдельное состояние, а не просто `health == 0`.
-
-Когда `GameDeathPolicy` сообщает о смерти:
-
-для Player:
-
-```text
-stop/release player control
-→ запретить abilities
-→ presentation cue
-→ показать Game Over / restart
-```
-
-для Monster:
-
-```text
-State = DEAD
-→ stop AI control
-→ больше не patrol/chase/attack
-→ presentation cue
-→ удалить позже или оставить corpse
-```
-
-Проверяйте переход смерти **один раз**, а не каждый `_physics_process()`.
-
----
-
-# 11. Сцена двери
-
-Создайте:
-
-```text
-res://content/gameplay/simple_scene/door/prop_door_simple.tscn
-```
-
-## 11.1. Дерево
-
-```text
-Door (AnimatableBody3D)
-├── Hinge (Node3D)
-│   ├── MeshInstance3D
-│   └── CollisionShape3D
-│
-└── GameObjectKernel
+Door
+└── GameObjectKernel (auto_initialize = false)
     ├── GameObjectIdentity
     ├── GameTagContainer
     ├── GameAbilities
     └── GameInteractionTarget
 ```
 
-Поворот `Hinge`, например:
+`GameAbilities.initial_abilities` содержит door.open и door.close.
+
+`GameInteractionTarget.reactions`:
 
 ```text
-closed = 0°
-open   = 95°
+open:  offer=simple.door.open  intent=open  verb=verb.open  ability=simple.ability.door.open
+close: offer=simple.door.close intent=close verb=verb.close ability=simple.ability.door.close
 ```
 
-`GameAbilities.initial_abilities` двери:
+Обе reactions могут быть `default_candidate = true`: availability определяется requirements самих abilities.
 
-```text
-simple.ability.door.open
-simple.ability.door.close
-```
-
----
-
-## 11.2. Interaction: инициатор выражает желание, цель исполняет свою ability
-
-У Player/NPC есть generic source ability:
-
-```text
-simple.ability.player.interact
-└── GameInteractionAbilityOperation
-```
-
-Она означает только:
-
-> «Я хочу взаимодействовать с чем-то».
-
-Она не знает, что перед ней `Door`, `Chest`, `NPC`, и не вызывает произвольные методы цели.
-
-У двери есть `GameInteractionReaction`:
-
-```text
-Open reaction
-    offer_id          = simple.door.open
-    intent_id         = open
-    verb_id           = verb.open
-    ability_id        = simple.ability.door.open
-    priority          = 50
-    default_candidate = true
-
-Close reaction
-    offer_id          = simple.door.close
-    intent_id         = close
-    verb_id           = verb.close
-    ability_id        = simple.ability.door.close
-    priority          = 50
-    default_candidate = true
-```
-
-`ability_id` находится внутри target-local reaction. `GameInteractionOffer`, который увидит UI/AI, содержит semantic `offer_id/intent_id/verb_id`, но не раскрывает target-local ability implementation.
-
-### Почему не нужен `_refresh_offers()`
-
-Door abilities используют обычные owner requirements:
-
-```text
-simple.ability.door.open
-    blocked_owner_tags = [state.open]
-
-simple.ability.door.close
-    required_owner_tags = [state.open]
-```
-
-`GameInteractionTarget.query_offers()` вызывает side-effect-free `GameAbilities.query_activation()` для reactions.
-
-Следовательно:
-
-```text
-Door CLOSED
-├── open  available
-└── close unavailable
-
-Door OPEN
-├── open  unavailable
-└── close available
-```
-
-Дверь не переписывает `offer_templates` вручную.
-
----
-
-## 11.3. Обычный contextual interact
-
-Кнопка `E` — обычный ability binding:
-
-```text
-E
-→ GamePlayerInputSource
-→ slot.interaction
-→ simple.ability.player.interact
-→ GameInteractionAbilityOperation
-→ focused GameInteractionTarget
-→ default currently available reaction
-→ Door.GameAbilities
-→ simple.ability.door.open / close
-```
-
-Если semantic intent пуст, target выбирает первый доступный `default_candidate` по priority.
-
-Для закрытой двери это `open`, для открытой — `close`.
-
-Ни в Player, ни в ControlEndpoint, ни в InteractionSource нет:
+Core interaction не делает spatial focus автоматически. Sensor/raycast/targeting adapter проекта должен вызвать:
 
 ```gdscript
-if target is GameDoorSimple:
-    ...
-
-if target.has_method("open_door"):
-    ...
+interaction_source.set_focus(target_handle, execution_context)
 ```
+
+после выбора target.
 
 ---
 
-## 11.4. Направленное взаимодействие
+# 10. Damage и Death
 
-AI, GOAP или cutscene часто знают желаемое состояние. Тогда активируется **та же** generic interaction ability, но с semantic intent:
-
-```gdscript
-request.set_activation_payload({
-    GameInteractionRequest.ACTIVATION_INTENT_KEY: &"open",
-})
-```
-
-При необходимости target передаётся обычным `GameAbilityActivationRequest.set_targets()`.
-
-Mock AI может сделать то же через control source:
-
-```gdscript
-ai_control_source.use_ability(
-    &"simple.ability.player.interact",
-    [door_handle],
-    execution_context,
-    {GameInteractionRequest.ACTIVATION_INTENT_KEY: &"open"}
-)
-```
-
-Семантика строгая:
+Damage path:
 
 ```text
-request(open) + CLOSED door  → door.open
-request(open) + OPEN door    → rejection/unchanged от door.open requirements
-request(open) + OPENING door → busy/rejection от door.open concurrency/requirements
-```
-
-`open` **никогда не превращается автоматически в `close`**.
-
----
-
-## 11.5. Локальная реализация двери
-
-Door-specific operation может знать конкретный game-specific root, потому что она является внутренней реализацией **door-owned ability**.
-
-Например:
-
-```gdscript
-@tool
-extends GameAbilityOperation
-class_name GameDoorSetOpenOperationSimple
-
-@export var open: bool = true
-
-func execute(
-    _abilities: GameAbilities,
-    execution: GameAbilityExecution
-) -> GameCommandResult:
-    if execution == null or execution.get_request() == null:
-        return GameCommandResult.configuration_error(
-            &"door_execution_missing",
-            "Door ability execution is incomplete."
-        )
-
-    var owner_handle: GameObjectHandle = execution.get_request().get_owner_handle()
-    if owner_handle == null or not owner_handle.is_resolved():
-        return GameCommandResult.invalid_target("Door ability owner is unresolved.")
-
-    var door: GameDoorSimple = owner_handle.get_root() as GameDoorSimple
-    if door == null:
-        return GameCommandResult.invalid_target(
-            "Door ability owner root does not provide GameDoorSimple state."
-        )
-
-    return door.set_open(open)
-```
-
-`GameDoorSimple.set_open()` может менять собственный `state.open`, Tween/Animation и сигналы. Это локальный API реализации двери, а не interaction protocol для внешних систем.
-
-Полный цельный вариант приведён в [`example_simple_scene_complete_scripts.md`](./example_simple_scene_complete_scripts.md).
-
----
-
-# 12. Бочка
-
-Создайте:
-
-```text
-res://content/gameplay/simple_scene/barrel/prop_barrel_simple.tscn
-```
-
-## 12.1. Дерево
-
-```text
-Barrel (StaticBody3D)
-├── Visual
-├── CollisionShape3D
-└── GameObjectKernel
-    ├── GameObjectIdentity
-    ├── GameTagContainer
-    ├── GameAttributes
-    ├── GameMeters
-    ├── GameDamageReceiver
-    ├── GameDeathPolicy
-    └── GamePresentationCueReceiver
-```
-
-Если бочка тоже должна гореть до взрыва, добавьте `GameEffects` и scheduler для неё.
-
-## 12.2. Здоровье
-
-Для прототипа:
-
-```text
-MaxHealth = 40
-Health    = 40 / 40
-```
-
-Tags:
-
-```text
-object.prop.barrel
-```
-
-Теперь атака игрока или explosion может выбирать бочку через capability `DAMAGE_RECEIVER`.
-
----
-
-## 12.3. Получение урона
-
-Урон идёт стандартно:
-
-```text
-Attack / Explosion
-→ GameDamageRequest
-→ Barrel.GameDamageReceiver
-→ Health meter
-→ depleted
+GameDamageRequest
+→ GameDamageReceiver.apply_damage()
+→ GameMeters
+→ meter_depleted
 → GameDeathPolicy
-→ barrel explode
 ```
 
-Не встраивайте отдельную несовместимую систему `barrel_hp`.
+`GameDeathPolicy` имеет signal:
+
+```gdscript
+signal died(execution_context: GameExecutionContext)
+```
+
+Player/Monster/Barrel/Mine могут подключаться к нему напрямую. Не нужно polling `health == 0` и не нужно угадывать имя death event.
 
 ---
 
-## 12.4. Взрыв
+# 11. Barrel
 
-В barrel script держите guard:
-
-```gdscript
-var _exploded: bool = false
-```
-
-В начале `explode()`:
+Barrel получает targeting через injected world port:
 
 ```gdscript
-if _exploded:
-    return
-_exploded = true
+var targeting_service := context.get_world_port(
+	GameWorldPortIds.TARGETING_QUERY
+) as GameTargetingService
 ```
 
-Устанавливайте guard **до** рассылки damage requests. Иначе две бочки могут рекурсивно взрывать друг друга несколько раз.
-
-Далее:
-
-1. создать `GameExecutionContext`;
-2. получить собственный `GameObjectHandle`;
-3. вызвать `targeting_service.query_sphere()`;
-4. запросить цели с `GameCapabilityIds.DAMAGE_RECEIVER`;
-5. исключить stable ID самой бочки;
-6. каждой цели отправить `GameDamageRequest`;
-7. tags урона: `damage.explosion`;
-8. отправить presentation cue;
-9. отключить collision;
-10. удалить объект через короткую задержку.
-
-Каркас target query:
+Для удаления:
 
 ```gdscript
-var excluded_ids: Array[StringName] = [
-    owner_handle.get_stable_id()
-]
-
-var query: Dictionary = targeting_service.query_sphere(
-    global_position,
-    explosion_radius,
-    GameCapabilityIds.DAMAGE_RECEIVER,
-    [],
-    excluded_ids
-)
+var spawn_service := context.get_world_port(
+	GameWorldPortIds.DESPAWN_REQUEST
+) as GameSpawnService
+spawn_service.despawn(barrel_handle, &"exploded", true)
 ```
 
-Цепная реакция получится естественно:
-
-```text
-Barrel A explosion
-→ DamageRequest в Barrel B
-→ Barrel B health = 0
-→ Barrel B DeathPolicy
-→ Barrel B explosion
-```
+Guard `_exploded` ставьте до radial damage.
 
 ---
 
-# 13. Мина
+# 12. Mine и Burning
 
-Создайте:
-
-```text
-res://content/gameplay/simple_scene/mine/prop_mine_simple.tscn
-```
-
-## 13.1. Дерево
-
-```text
-Mine (Area3D)
-├── Visual
-├── BodyCollision (CollisionShape3D)
-├── TriggerCollision (CollisionShape3D)
-│
-└── GameObjectKernel
-    ├── GameObjectIdentity
-    ├── GameTagContainer
-    ├── GameAttributes
-    ├── GameMeters
-    ├── GameEffects               # если нужно принимать эффекты
-    ├── GameDamageReceiver
-    ├── GameDeathPolicy
-    └── GamePresentationCueReceiver
-```
-
-Экспортируемые зависимости игрового скрипта:
-
-```gdscript
-@export var kernel: GameObjectKernel = null
-@export var targeting_service: GameTargetingService = null
-@export var trigger_collision: CollisionShape3D = null
-```
-
-Runtime-зависимости, задаваемые при spawn:
+Для spawned mine example явно назначаются:
 
 ```text
 owner_handle
 instigator_handle
-object_resolver
 targeting_service
+spawn_service
+burning_effect
 ```
 
----
-
-## 13.2. Установка мины
-
-Цикл:
-
-```text
-Player presses Q
-→ GameAbilities.activate(simple.ability.player.place_mine)
-→ operation/request spawn
-→ MainScene instantiate Mine
-→ inject world services + owner handle
-→ register mine handle
-→ wait arming delay
-→ arm
-```
-
-Не делайте мину вооружённой прямо в момент spawn рядом с collider игрока.
-
----
-
-## 13.3. Armed state
-
-Пример состояний:
-
-```text
-PLACED
-ARMED
-EXPLODED
-```
-
-На spawn:
-
-```text
-armed = false
-TriggerCollision.disabled = true
-```
-
-Через 0.35 секунды:
-
-```text
-armed = true
-TriggerCollision.disabled = false
-```
-
-Для production лучше переключать physics collision безопасным способом, учитывая правила Godot для изменения collision state во время physics callback.
-
----
-
-## 13.4. Реагирование на body_entered
-
-Не выбрасывайте аргумент `body`.
-
-Плохой вариант:
+После successful explosion hit:
 
 ```gdscript
-func _on_body_entered(_body: Node3D) -> void:
-    trigger()
-```
+var target_effects := target_context.get_capability(
+	GameCapabilityIds.EFFECTS_RECEIVER
+) as GameEffects
 
-В таком коде теряется информация о том, **кто** наступил на мину.
-
-Нужная схема:
-
-```text
-body
-→ найти/получить его GameObjectKernel/Context
-→ получить GameObjectHandle
-→ проверить owner/faction/rules
-→ trigger(instigator_handle)
-```
-
-Перед детонацией проверьте:
-
-```text
-armed == true
-exploded == false
-body — GCA объект
-handle resolved
-handle != owner_handle
-цель удовлетворяет правилам мины
-```
-
-Collision mask мины должен видеть Player/Monster layers, которые действительно должны её активировать.
-
----
-
-## 13.5. Мина получает урон
-
-Для мины создайте:
-
-```text
-MaxHealth = 20
-Health    = 20 / 20
-```
-
-Наличие `GameDamageReceiver` позволяет:
-
-```text
-Player attack
-→ Mine DamageReceiver
-→ Mine Health 20 → 0
-→ DeathPolicy
-→ explode()
-```
-
-Таким образом мина может взрываться двумя путями:
-
-```text
-Trigger entered
-        ┐
-        ├→ explode_once()
-Health depleted
-        ┘
-```
-
-Оба пути должны сходиться в **один** метод с guard `_exploded`.
-
----
-
-## 13.6. Взрыв мины
-
-Рекомендуемые параметры:
-
-```text
-explosion_radius = 3.0
-explosion_damage = 50.0
-```
-
-В начале:
-
-```gdscript
-if _exploded:
-    return
-_exploded = true
-_armed = false
-```
-
-Сразу отключите trigger, чтобы новые `body_entered` не создавали повторные события.
-
-Далее query:
-
-```gdscript
-var query: Dictionary = targeting_service.query_sphere(
-    global_position,
-    explosion_radius,
-    GameCapabilityIds.DAMAGE_RECEIVER,
-    [],
-    excluded_ids
+target_effects.apply_effect(
+	burning_effect,
+	mine_handle,
+	effective_instigator,
+	execution_context
 )
 ```
 
-На каждую цель:
-
-```gdscript
-var damage_tags: Array[StringName] = [
-    &"damage.explosion"
-]
-
-var request := GameDamageRequest.new(
-    mine_handle,
-    instigator_handle,
-    target_handle,
-    explosion_damage,
-    damage_tags,
-    execution_context
-)
-
-receiver.apply_damage(request)
-```
-
-### Что важно проверить
-
-Если мина визуально «взорвалась», но никто не получил урон, проверяйте по порядку:
-
-1. `targeting_service != null`;
-2. mine kernel имеет context;
-3. цели зарегистрированы/разрешаются world services;
-4. у целей есть `GameDamageReceiver`;
-5. query использует правильный capability ID;
-6. collision/physics world находится в корректном состоянии;
-7. вы не исключили нужную цель через stable ID/tags;
-8. damage request действительно дошёл до receiver.
+Это текущая сигнатура Effect API.
 
 ---
 
-# 14. Мина накладывает статус «Горение»
+# 13. Runtime registration lifecycle
 
-Explosion damage и Burning — это **две разные операции**.
-
-Схема:
+В текущем API существуют:
 
 ```text
-Mine explosion
-├── immediate GameDamageRequest: 50 explosion
-└── apply GameEffect: simple.effect.burning
-                         ↓
-                    status.burning
-                         ↓
-                 periodic fire damage
+GameObjectResolver.mark_unresolved(stable_id)
+GameObjectResolver.invalidate_permanently(stable_id)
+GameSpawnService.despawn(handle, reason, permanent)
 ```
 
-## 14.1. Кто может получить Burning
-
-На цели должен существовать `GameEffects` capability/runtime-компонент.
-
-Для этого прототипа `GameEffects` нужен как минимум у:
-
-- Player;
-- Monster.
-
-Если хотите поджигать бочки — добавьте его и бочкам.
-
-## 14.2. Наложение effect
-
-После успешного explosion hit получите target context и capability effects, затем примените `simple.effect.burning` через публичный API `GameEffects`, сохранив тот же/root-child `GameExecutionContext` согласно используемой operation.
-
-Не храните отдельный bool:
-
-```gdscript
-is_burning = true
-```
-
-если состояние уже моделируется GCA effect + tag.
-
-## 14.3. Периодический урон
-
-Каждый tick Burning должен создавать:
-
-```text
-GameDamageRequest
-amount = 5
-tag    = damage.fire
-source/instigator = источник эффекта
-```
-
-Это важно, потому что тогда:
-
-- смерть от огня проходит через тот же DeathPolicy;
-- resistances/immunity можно добавить централизованно;
-- combat log знает источник;
-- friendly-fire rules остаются согласованными.
-
-## 14.4. Scheduler обязателен
-
-У получателя эффекта должен выполняться:
-
-```gdscript
-effects.advance_time(delta, execution_context)
-```
-
-Локальное продвижение времени owner/subscene является допустимой и намеренной моделью. Не обязательно выносить все entities в один глобальный scheduler.
+Для runtime object, созданного `GameSpawnService`, используйте `despawn()` вместо неопределённого “unregister API”.
 
 ---
 
-# 15. Общий helper для radial damage
-
-Бочку и мину удобно свести к одному стилю кода.
-
-Каркас алгоритма:
-
-```gdscript
-func apply_radial_damage(
-    source_handle: GameObjectHandle,
-    instigator_handle: GameObjectHandle,
-    center: Vector3,
-    radius: float,
-    damage: float,
-    damage_tags: Array[StringName],
-    execution_context: GameExecutionContext
-) -> int:
-    var excluded_ids: Array[StringName] = [
-        source_handle.get_stable_id()
-    ]
-
-    var query: Dictionary = targeting_service.query_sphere(
-        center,
-        radius,
-        GameCapabilityIds.DAMAGE_RECEIVER,
-        [],
-        excluded_ids
-    )
-
-    var affected_count: int = 0
-
-    for handle_value: Variant in query.get("handles", []):
-        var target_handle: GameObjectHandle = handle_value as GameObjectHandle
-        if target_handle == null or not target_handle.is_resolved():
-            continue
-
-        var target_context: GameObjectContext = target_handle.get_context()
-        if target_context == null:
-            continue
-
-        var receiver: GameDamageReceiver = target_context.get_capability(
-            GameCapabilityIds.DAMAGE_RECEIVER
-        ) as GameDamageReceiver
-
-        if receiver == null:
-            continue
-
-        var request := GameDamageRequest.new(
-            source_handle,
-            instigator_handle,
-            target_handle,
-            damage,
-            damage_tags,
-            execution_context
-        )
-
-        if receiver.apply_damage(request).is_success():
-            affected_count += 1
-
-    return affected_count
-```
-
-Это каркас для обучения. В production вынесите общую combat-запросную логику в подходящий сервис/operation, чтобы Mine и Barrel не дублировали её.
-
----
-
-# 16. Что ещё нужно для полноценного прототипа
-
-В исходном списке были основные gameplay-объекты, но для реально работающей сцены нужны ещё несколько частей.
-
-## 16.1. World resolver и targeting service
-
-Без них динамические объекты и radial abilities легко превращаются в «визуально работают, но никого не находят».
-
-## 16.2. Регистрация динамических объектов
-
-Каждая созданная runtime mine должна войти в тот же world lifecycle, что и объекты, уже лежавшие в `.tscn`.
-
-## 16.3. Faction/friendly fire
-
-Заранее определите:
+# 14. Проверочный порядок
 
 ```text
-Player attacks Monster
-Monster attacks Player
-Mine owner ignored?
-Mine damages other player?
-Explosion damages barrels?
-Explosion damages placer?
-```
-
-Не размазывайте эти решения по пяти scripts.
-
-## 16.4. Navigation
-
-Монстр без navmesh и `NavigationAgent3D` сможет знать, куда идти, но не сможет корректно обходить стены.
-
-## 16.5. Interaction focus и semantic reactions
-
-Generic interaction ability должна получить target одним из двух путей:
-
-```text
-explicit ability target handle
-```
-
-или:
-
-```text
-current GameInteractionSource focus
-```
-
-Механизм world/camera/proximity focus остаётся отдельной targeting integration. После получения target никакого command dispatcher не нужен:
-
-```text
-GameInteractionRequest
-→ GameInteractionTarget
-→ GameInteractionReaction
-→ target-local GameAbilities
-```
-
-## 16.6. Scheduler
-
-Периодические effects, duration и ability cooldown должны получать time advancement. В этом прототипе scheduler остаётся локальным у owner/subscene.
-
-## 16.7. Death state
-
-После смерти объект должен перестать принимать решения/управление, а не продолжать ходить с `Health == 0`.
-
-## 16.8. Presentation
-
-Gameplay logic не должна зависеть от конкретного VFX.
-
-Правильнее:
-
-```text
-mine exploded
-→ gameplay state уже изменён
-→ presentation cue / signal
-→ VFX/SFX слой показывает взрыв
-```
-
-## 16.9. HUD/debug
-
-Для учебной сцены очень полезно вывести:
-
-```text
-Player HP
-Monster HP
-Monster AI State
-Player current control owner
-Interaction focused target
-Interaction current offers/intents
-Mine armed state
-Mine last affected_count
-Burning active / remaining time
-```
-
-Так вы сразу видите, где нарушился pipeline.
-
-## 16.10. Restart
-
-Добавьте простой restart сцены после смерти игрока. Это ускоряет тестирование полного цикла.
-
----
-
-# 17. Рекомендуемый порядок разработки
-
-Не пытайтесь собрать всё одновременно.
-
-## Шаг 1 — World
-
-Сделайте:
-
-- физический floor;
-- world services;
-- navigation;
-- пустые spawn/patrol containers.
-
-Проверка: сцена запускается без ошибок.
-
-## Шаг 2 — Player movement
-
-Добавьте:
-
-- Kernel;
-- Identity;
-- Tags;
-- Attributes;
-- Control;
-- Motor;
-- PlayerInputSource.
-
-Проверка: WASD двигает игрока.
-
-## Шаг 3 — Player health
-
-Добавьте:
-
-- Health meter;
-- DamageReceiver;
-- DeathPolicy.
-
-Временно отправьте тестовый `GameDamageRequest`.
-
-Проверка:
-
-```text
-100 → 75
-```
-
-## Шаг 4 — Player attack
-
-Добавьте ability и test dummy/monster.
-
-Проверка: Mouse1 уменьшает HP цели через `GameDamageReceiver`.
-
-## Шаг 5 — Monster
-
-Сначала только:
-
-- health;
-- AI control;
-- patrol.
-
-Потом добавьте chase.
-
-Потом attack.
-
-## Шаг 6 — Dodge
-
-Добавьте temporary control override.
-
-Проверка №1: рывок работает.
-
-Проверка №2: после рывка WASD снова работает.
-
-Только после этого добавляйте i-frames.
-
-## Шаг 7 — Door interaction
-
-Сначала:
-
-1. создайте `door.open` / `door.close` abilities;
-2. добавьте `state.open` requirements;
-3. настройте `GameInteractionReaction`;
-4. убедитесь, что closed door query показывает только `open`;
-5. свяжите `E → slot.interaction → generic interact ability`;
-6. проверьте default interact;
-7. отдельно проверьте `intent.open` на уже открытой двери — он не должен вызвать close;
-8. только затем добавляйте полноценную анимацию/presentation.
-
-## Шаг 8 — Barrel
-
-Сначала damage/death.
-
-Потом explosion.
-
-Потом две бочки и chain reaction.
-
-## Шаг 9 — Place Mine
-
-Сначала ability создаёт mine scene.
-
-Потом world injection/registration.
-
-Потом arming delay.
-
-## Шаг 10 — Mine explosion
-
-Проверьте:
-
-- monster входит в Area;
-- mine получает правильный instigator;
-- `affected_count > 0`;
-- Monster Health уменьшается.
-
-## Шаг 11 — Mine damageability
-
-Атакуйте мину игроком.
-
-Проверка:
-
-```text
-Mine Health → 0
-→ explosion exactly once
-```
-
-## Шаг 12 — Burning
-
-Добавьте effect последним.
-
-Проверка:
-
-```text
-Explosion immediate damage
-→ status.burning appears
-→ fire damage every period
-→ effect expires
+1. Data Studio показывает creation categories в пустом content.
+2. Resolver назначен SpawnService и TargetingService.
+3. World services назначены GameWorldContext.
+4. Static kernels имеют auto_initialize=false.
+5. GameWorldContext.bind_kernel() успешно bind-ит static objects.
+6. Player movement идёт через control endpoint.
+7. attack InputAction активирует slot.primary.
+8. Attack operation получает targeting через world port.
+9. DamageRequest уменьшает Health через DamageReceiver.
+10. DeathPolicy.died срабатывает на depletion.
+11. AI attack проходит через GameMockAIControlSource.use_ability().
+12. Interaction focus установлен sensing adapter-ом.
+13. E активирует slot.interaction → generic interact ability.
+14. Door default interaction выбирает open/close по ability requirements.
+15. Mine identity разрешает runtime-generated ID.
+16. PlaceMine operation использует GameSpawnService.
+17. Spawned mine получает owner/instigator и explicit runtime dependencies.
+18. Burning применяется через GameEffects.apply_effect().
+19. Burning period изменяет Health через meter_operations.
+20. Despawn проходит через GameSpawnService.despawn().
 ```
 
 ---
 
-# 18. Полный ожидаемый игровой цикл
-
-После завершения сцена должна работать так.
-
-## Игрок
+# 15. Главное правило
 
 ```text
-WASD
-→ PlayerInputSource
-→ ControlArbiter
-→ ControlEndpoint
-→ CharacterMotor
-→ movement
+Input / AI decision
+→ intent / ability slot
+→ ability activation
+→ operation
+→ object/world capability
+→ state mutation
+→ presentation
 ```
 
-```text
-Mouse1
-→ slot.primary
-→ GameAbilities
-→ Player Attack Operation
-→ TargetingService
-→ Monster/Barrel/Mine DamageReceiver
-→ Health
-```
-
-```text
-Space
-→ Dodge Ability
-→ temporary movement ownership
-→ dash
-→ release ownership
-→ normal player movement restored
-```
-
-```text
-Q
-→ PlaceMine Ability
-→ spawn request
-→ MainScene creates mine
-→ inject services
-→ register handle
-→ arm
-```
-
-## Монстр
-
-```text
-PATROL
-→ sees player
-→ CHASE
-→ reaches attack distance
-→ ATTACK
-→ GameAbilities
-→ GameDamageRequest
-→ Player DamageReceiver
-```
-
-## Дверь
-
-```text
-E
-→ slot.interaction
-→ generic interaction ability
-→ GameInteractionAbilityOperation
-→ GameInteractionTarget
-→ available semantic reaction
-→ Door.GameAbilities
-→ door.open / door.close
-```
-
-Направленный AI вариант:
-
-```text
-GOAP wants OPEN
-→ generic interaction ability(target=door, intent=open)
-→ Door reaction(open)
-→ door.open only
-```
-
-## Бочка
-
-```text
-DamageRequest
-→ Health = 0
-→ DeathPolicy
-→ explosion
-→ TargetingService
-→ radial DamageRequests
-→ possible chain reaction
-```
-
-## Мина
-
-```text
-PlaceMine Ability
-→ spawn
-→ arm
-→ monster enters Area
-→ resolve instigator
-→ explosion
-├→ explosion damage
-└→ Burning effect
-```
-
----
-
-# 19. Частые ошибки и диагностика
-
-## Мина лежит и ничего не делает
-
-Проверьте:
-
-- назначен ли `GameTargetingService`;
-- включён ли monitoring Area3D;
-- совпадают ли collision layers/masks;
-- вооружена ли мина;
-- есть ли у цели `GameDamageReceiver`;
-- не равен ли target owner handle;
-- зарегистрированы ли handles;
-- возвращает ли query хотя бы один handle.
-
-## Мина срабатывает, но HP не меняется
-
-Проверьте:
-
-- `affected_count`;
-- capability `DAMAGE_RECEIVER`;
-- правильный health meter ID;
-- результат `receiver.apply_damage(request)`;
-- правила иммунитета/faction.
-
-## Ability возвращает success, но ничего визуально не происходит
-
-`GameCommandResult.success` означает, что команда была принята/выполнена согласно operation, а не гарантирует наличие VFX.
-
-Отдельно проверяйте gameplay result и presentation.
-
-## Монстр стоит на месте
-
-Проверьте:
-
-- navmesh запечён;
-- `NavigationAgent3D` имеет путь;
-- player target назначен;
-- AI source `attach()` успешен;
-- AI source получил control;
-- monster не находится внутри stop/attack distance;
-- движение не перезаписывается вторым скриптом.
-
-## Door не реагирует на E
-
-Проверьте по цепочке:
-
-1. `interact` привязан к `slot.interaction`;
-2. slot резолвится в grant generic interaction ability;
-3. у generic ability есть `GameInteractionAbilityOperation`;
-4. у `GameInteractionSource` есть focus или ability request содержит explicit target;
-5. у Door есть `GameInteractionTarget` и local `GameAbilities`;
-6. reactions валидны;
-7. `door.open/close` grants существуют;
-8. `state.open` зарегистрирован в tag catalog;
-9. `query_activation()` действительно считает нужную door ability доступной.
-
-Не добавляйте `if target is Door` или `has_method()` для исправления этой цепочки.
-
-## `intent.open` неожиданно закрывает дверь
-
-Это нарушение semantic interaction contract. Explicit intent должен фильтровать только reactions с `intent_id == open`. Он не должен fallback-иться на default `close`.
-
-## Burning появился, но не наносит периодический урон
-
-Проверьте:
-
-- есть ли `GameEffects` у цели;
-- вызывается ли `effects.advance_time()`;
-- существует ли periodic operation;
-- operation создаёт ли `GameDamageRequest`;
-- не отклоняется ли `damage.fire` damage policy.
-
-## После Dodge игрок больше не двигается
-
-Временный владелец movement channel не освободил control.
-
-## Бочка/мина взрывается несколько раз
-
-Guard `_exploded` выставлен слишком поздно. Установите его в самом начале `explode()` до нанесения radial damage.
-
-## У объекта есть Health, но targeting его не находит
-
-Health meter и `GameDamageReceiver` — не одно и то же. Query по `GameCapabilityIds.DAMAGE_RECEIVER` требует соответствующий capability.
-
----
-
-# 20. Checklist готового прототипа
-
-Перед тем как считать сцену рабочей, пройдите весь список.
-
-- [ ] Main Scene запускается без ошибок.
-- [ ] Floor имеет физическую collision shape.
-- [ ] `GameObjectResolver` доступен объектам мира.
-- [ ] `GameTargetingService` передан объектам, которым нужен targeting.
-- [ ] Player зарегистрирован как GCA object.
-- [ ] Monster зарегистрирован как GCA object.
-- [ ] Door зарегистрирован как GCA object, если используется world resolver/focus.
-- [ ] Barrels зарегистрированы как GCA objects.
-- [ ] Динамические mines регистрируются после spawn.
-- [ ] Player двигается через control pipeline.
-- [ ] Player Health начинается с полного значения.
-- [ ] Player имеет `GameDamageReceiver`.
-- [ ] Player attack наносит урон Monster.
-- [ ] Dodge временно перехватывает movement и затем возвращает его.
-- [ ] Place Mine создаёт мину в `SpawnedMines`.
-- [ ] Mine получает owner/instigator handle.
-- [ ] Mine получает world targeting service.
-- [ ] Mine не взрывается мгновенно от собственного владельца.
-- [ ] Monster патрулирует заданные точки.
-- [ ] Monster начинает chase после обнаружения Player.
-- [ ] Monster останавливается на attack distance.
-- [ ] Monster attack наносит Player damage через `GameDamageRequest`.
-- [ ] Dead Monster больше не двигается и не атакует.
-- [ ] Player `interact` идёт через ability slot, а не отдельный door method.
-- [ ] Door имеет local `GameAbilities`.
-- [ ] Door reaction `open` ссылается на `door.open` ability.
-- [ ] Door reaction `close` ссылается на `door.close` ability.
-- [ ] Closed Door query выдаёт semantic `open` offer.
-- [ ] Open Door query выдаёт semantic `close` offer.
-- [ ] Default interact открывает закрытую и закрывает открытую дверь.
-- [ ] Explicit `intent.open` на открытой двери не вызывает `close`.
-- [ ] Interaction code не проверяет target class и не использует `has_method("activate")`.
-- [ ] Barrel получает урон.
-- [ ] Barrel взрывается только один раз.
-- [ ] Две бочки могут дать контролируемую chain reaction.
-- [ ] Mine может получить урон и взорваться от depletion.
-- [ ] Monster может активировать Mine через trigger.
-- [ ] Explosion уменьшает Health целей.
-- [ ] Explosion накладывает `simple.effect.burning` на поддерживаемые цели.
-- [ ] Burning создаёт периодический `damage.fire`.
-- [ ] Burning завершается по duration.
-- [ ] `abilities.advance_time()` вызывается для runtime abilities.
-- [ ] `effects.advance_time()` вызывается для runtime effects.
-- [ ] `kernel.process_execution_queue()` вызывается там, где требуется runtime execution queue.
-- [ ] Gameplay code не использует прямые цепочки `get_parent().some_gameplay_method()`.
-- [ ] Дочерние компоненты сообщают наверх через signals, а родитель явно управляет дочерними зависимостями.
-
----
-
-# 21. Главное правило работы с API GCA
-
-Когда появляется новая gameplay-механика, задавайте вопросы в таком порядке:
-
-```text
-1. Кто является GameObject?
-2. Какие capability ему нужны?
-3. Какие data definitions можно создать через GCA Data Studio?
-4. Кто принимает решение/ввод?
-5. Какая Ability выражает намерение инициатора?
-6. Как выбирается Target?
-7. Какой semantic Request/Reaction определяет ответ цели?
-8. Какая target-owned Ability реально меняет состояние цели?
-9. Как Meter/Tags/DeathPolicy отражают результат?
-10. Как Presentation показывает результат игроку?
-11. Кто владеет lifecycle, scheduler и world registration?
-```
-
-На примере двери:
-
-```text
-Player / AI
-→ generic Interact Ability
-→ GameInteractionRequest(default или intent.open)
-→ Door.GameInteractionTarget
-→ GameInteractionReaction
-→ Door.GameAbilities
-→ door.open / door.close
-→ state.open / presentation
-```
-
-На примере мины:
-
-```text
-Player
-→ PlaceMine Ability
-→ World spawns Mine GameObject
-→ Mine arms
-→ Monster enters trigger
-→ Mine resolves Monster Handle
-→ TargetingService finds damageable objects
-→ GameDamageRequest
-→ GameDamageReceiver
-→ Health Meter
-→ Burning GameEffect
-→ DeathPolicy if depleted
-→ Presentation cue
-```
-
-Если каждый этап этой цепочки можно отдельно проверить, архитектура остаётся модульной, а ошибка вроде «мина просто лежит» или «дверь не открывается» быстро локализуется до конкретного отсутствующего звена.
+Не возвращайтесь к `Input handler → hardcoded ability ID → Dictionary с Node/Callable/service`, если dependency уже выражен через owner context, capability, world port, grant/loadout или semantic interaction request.

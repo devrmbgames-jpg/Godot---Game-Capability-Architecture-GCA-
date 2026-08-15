@@ -1,200 +1,117 @@
-# Цельные скрипты-шаблоны к `example_simple_scene.md`
+# Цельные скрипты к `example_simple_scene.md` — текущий API
 
-Этот документ дополняет [`example_simple_scene.md`](./example_simple_scene.md) цельными GDScript-файлами, которые удобнее переносить в проект целиком.
+Этот companion содержит game-specific GDScript, совместимый с контрактами, описанными в [`example_simple_scene.md`](./example_simple_scene.md).
 
-Основной tutorial остаётся главным источником для:
+Ключевые отличия от старой версии примера:
 
-- дерева сцен;
-- создания `.tres` через GCA Data Studio;
-- Inspector wiring;
-- collision layers/masks;
-- navigation;
-- faction/friendly-fire правил;
-- presentation;
-- настройки `GameDeathPolicy`;
-- Burning effect.
+- нет `_unhandled_input()` для attack/dodge/place-mine;
+- нет прямого `GameAbilities.activate()` из Player/AI root;
+- нет activation payload с `actor_node`, `targeting_service` или `Callable`;
+- статические objects bind-ятся через `GameWorldContext.bind_kernel()`;
+- attack operation получает targeting через world port;
+- mine создаётся через `GameSpawnService`;
+- death подключается к реальному `GameDeathPolicy.died`;
+- Burning применяется через реальный `GameEffects.apply_effect()`;
+- despawn идёт через `GameSpawnService.despawn()`;
+- interaction остаётся generic ability → semantic request → target-owned ability.
 
-Здесь собран именно **game-specific glue-код**.
-
-> Важно: GCA не обязан знать, что такое «бочка», «мина», «дверь» или «рывок игрока». Скрипты игрового уровня используют публичные GCA-контракты. В частности, interaction не должен проверять тип цели или искать у неё методы `activate/open/close`: инициатор активирует универсальную interaction ability, а цель сама резолвит семантическое намерение в свою локальную ability.
-
-## Что здесь подтверждено текущим GCA API
-
-В примерах ниже используются существующие контракты:
-
-```text
-GameObjectKernel.get_object_context()
-GameObjectContext.get_object_handle()
-GameObjectContext.create_root_execution_context(...)
-GameObjectContext.get_capability(...)
-
-GameAbilities.advance_time(...)
-GameAbilities.activate(GameAbilityActivationRequest)
-
-GameAbilityOperation.execute(GameAbilities, GameAbilityExecution)
-GameAbilityExecution.get_request()
-GameAbilityExecution.get_execution_context()
-
-GameInteractionAbilityOperation
-GameInteractionReaction
-GameInteractionRequest
-GameInteractionTarget
-
-GameTargetingService.query_sphere(...)
-GameDamageRequest.new(...)
-GameDamageReceiver.apply_damage(...)
-
-GamePlayerInputSource.attach(...)
-GamePlayerInputSource.request_control()
-GameMockAIControlSource.attach(...)
-GameMockAIControlSource.request_control()
-GameMockAIControlSource.move(...)
-GameMockAIControlSource.stop(...)
-```
-
-Два integration-point намеренно не выдуманы:
-
-1. точное событие `GameDeathPolicy`, к которому вы захотите подключить `explode()`/`die()`, зависит от публичного API текущей версии компонента и wiring сцены;
-2. при удалении динамической мины используйте публичный unregister API вашего текущего `GameObjectResolver`. Основной tutorial специально требует симметричную регистрацию, но не фиксирует неподтверждённое имя метода.
-
-То же касается наложения Burning: в основном tutorial описан правильный pipeline, но конкретная сигнатура `GameEffects` для application там не зафиксирована. Поэтому здесь нет придуманного `apply_effect(...)`.
+> Для статических Player/Monster/Door/Barrels выставьте `GameObjectKernel.auto_initialize = false` в Inspector. Parent world bind-ит их после того, как все scene nodes вошли в tree, и только затем запускает root runtime glue.
 
 ---
 
 # 1. `game_simple_scene.gd`
-
-Путь:
-
-```text
-res://content/gameplay/simple_scene/world/game_simple_scene.gd
-```
 
 ```gdscript
 extends Node3D
 class_name GameSimpleScene
 
 # ======== EXPORT =========
-@export var object_resolver: GameObjectResolver = null
-@export var targeting_service: GameTargetingService = null
-@export var spawned_mines: Node3D = null
-@export var mine_scene: PackedScene = null
+@export var world_context: GameWorldContext = null
 @export var player: GamePlayerSimple = null
 @export var monster: GameMonsterSimple = null
+@export var door: GameDoorSimple = null
+@export var barrels: Array[GameBarrelSimple] = []
 @export var patrol_points_root: Node3D = null
 
 # ======= OVERRIDE =======
 func _ready() -> void:
-	_wire_player()
-	_wire_monster()
-	_register_static_objects()
-
-# ====== HELPERS ========
-func _wire_player() -> void:
-	if player == null:
+	if world_context == null:
+		push_error("SimpleScene requires GameWorldContext.")
 		return
 
-	player.targeting_service = targeting_service
+	if player != null and not _bind_kernel(player.kernel):
+		return
+	if monster != null and not _bind_kernel(monster.kernel):
+		return
+	if door != null and not _bind_kernel(door.kernel):
+		return
+	for barrel: GameBarrelSimple in barrels:
+		if barrel != null and not _bind_kernel(barrel.kernel):
+			return
 
-	if not player.mine_spawn_requested.is_connected(_on_player_mine_spawn_requested):
-		player.mine_spawn_requested.connect(_on_player_mine_spawn_requested)
+	_wire_monster()
+
+	if player != null:
+		player.start_runtime()
+	if monster != null:
+		monster.start_runtime()
+
+# ====== HELPERS ========
+func _bind_kernel(kernel: GameObjectKernel) -> bool:
+	if kernel == null:
+		push_error("SimpleScene contains an object without GameObjectKernel.")
+		return false
+	var result: GameCommandResult = world_context.bind_kernel(kernel)
+	if result.is_success():
+		return true
+	push_error(
+		"Could not bind kernel: %s — %s" % [
+			result.get_reason_code(),
+			result.get_debug_message(),
+		]
+	)
+	return false
 
 func _wire_monster() -> void:
 	if monster == null:
 		return
-
-	monster.targeting_service = targeting_service
-
 	if player != null:
 		monster.set_target(player)
 
-	var patrol_points: Array[Marker3D] = []
-
+	var points: Array[Marker3D] = []
 	if patrol_points_root != null:
 		for child: Node in patrol_points_root.get_children():
 			var marker: Marker3D = child as Marker3D
 			if marker != null:
-				patrol_points.append(marker)
-
-	monster.set_patrol_points(patrol_points)
-
-func _register_static_objects() -> void:
-	if player != null:
-		_register_kernel(player.kernel)
-
-	if monster != null:
-		_register_kernel(monster.kernel)
-
-func _register_kernel(kernel: GameObjectKernel) -> void:
-	if object_resolver == null or kernel == null:
-		return
-
-	var context: GameObjectContext = kernel.get_object_context()
-	if context == null:
-		return
-
-	var handle: GameObjectHandle = context.get_object_handle()
-	if handle == null:
-		return
-
-	object_resolver.register_handle(handle)
-
-func _on_player_mine_spawn_requested(
-	owner_handle: GameObjectHandle,
-	spawn_transform: Transform3D
-) -> void:
-	if mine_scene == null or spawned_mines == null:
-		return
-
-	var mine: GameMineSimple = mine_scene.instantiate() as GameMineSimple
-	if mine == null:
-		return
-
-	mine.owner_handle = owner_handle
-	mine.instigator_handle = owner_handle
-	mine.targeting_service = targeting_service
-	mine.global_transform = spawn_transform
-
-	spawned_mines.add_child(mine)
-	_register_kernel(mine.kernel)
-	mine.arm_after_delay()
+				points.append(marker)
+	monster.set_patrol_points(points)
 ```
 
-### Что назначить в Inspector
+World Inspector:
 
 ```text
-object_resolver     -> WorldServices/GameObjectResolver
-targeting_service   -> WorldServices/GameTargetingService
-spawned_mines       -> SpawnedMines
-mine_scene          -> prop_mine_simple.tscn
-player              -> Player
-monster             -> Monster
-patrol_points_root  -> PatrolPoints
+GameSpawnService.object_resolver = GameObjectResolver
+GameSpawnService.default_parent  = SpawnedMines
+
+GameWorldContext.object_resolver         = GameObjectResolver
+GameWorldContext.spawn_service           = GameSpawnService
+GameWorldContext.targeting_service       = GameTargetingService
+GameWorldContext.time_service            = GameTimeService
+GameWorldContext.persistence_coordinator = GamePersistenceCoordinator
 ```
 
-При удалении runtime-мины добавьте симметричный unregister через публичный API resolver вашей текущей версии GCA.
+Не вызывайте `object_resolver.register_handle()` после `bind_kernel()`.
 
 ---
 
 # 2. `game_player_simple.gd`
 
-Путь:
-
-```text
-res://content/gameplay/simple_scene/player/game_player_simple.gd
-```
-
-Минимальный dodge ниже сделан как короткое collision-aware перемещение через `move_and_collide()`. Это **учебный fallback**, чтобы файл был самодостаточным. Production-вариант из основного tutorial должен временно preempt movement channel через control layer и затем обязательно вернуть владение.
-
-Локальное тиканье ability/effect/queue здесь оставлено намеренно. Владелец подсцены сам контролирует scheduler advancement, что удобно для профилирования и не заставляет весь проект использовать один глобальный runtime driver.
+Player root больше не знает concrete attack/dodge/mine IDs. Кнопки настраиваются в `GamePlayerInputSource.ability_input_bindings`, а concrete grants — в `GameAbilityLoadout`.
 
 ```gdscript
 extends CharacterBody3D
 class_name GamePlayerSimple
 
-signal mine_spawn_requested(
-	owner_handle: GameObjectHandle,
-	spawn_transform: Transform3D
-)
 signal player_died()
 
 # ======== EXPORT =========
@@ -202,190 +119,116 @@ signal player_died()
 @export var control_arbiter: GameControlArbiter = null
 @export var control_endpoint: GameControlEndpoint = null
 @export var player_input_source: GamePlayerInputSource = null
+@export var interaction_source: GameInteractionSource = null
 @export var abilities: GameAbilities = null
 @export var effects: GameEffects = null
-@export var targeting_service: GameTargetingService = null
-@export var mine_placement_marker: Marker3D = null
-@export_range(0.0, 10.0, 0.1) var simple_dodge_distance: float = 4.0
+@export var death_policy: GameDeathPolicy = null
 
 # ======== PRIVATE VAR ======
-var _control_attached: bool = false
+var _runtime_started: bool = false
 var _dead: bool = false
 
 # ======= OVERRIDE =======
-func _ready() -> void:
-	_attach_player_control()
-
 func _physics_process(delta: float) -> void:
+	if not _runtime_started:
+		return
 	if abilities != null:
 		abilities.advance_time(delta)
-
-	if effects != null and kernel != null and kernel.get_object_context() != null:
-		var execution_context: GameExecutionContext = (
-			kernel.get_object_context().create_root_execution_context(
-				&"simple.player.tick",
-				"Simple player scheduler"
+	if effects != null and kernel != null:
+		var context: GameObjectContext = kernel.get_object_context()
+		if context != null:
+			effects.advance_time(
+				delta,
+				context.create_root_execution_context(
+					&"simple.player.effects_tick",
+					"Player effects tick"
+				)
 			)
-		)
-		effects.advance_time(delta, execution_context)
-
 	if kernel != null:
 		kernel.process_execution_queue()
 
-func _unhandled_input(event: InputEvent) -> void:
-	if _dead:
+# ====== PUBLIC ========
+func start_runtime() -> void:
+	if _runtime_started:
 		return
-
-	if event.is_action_pressed(&"attack"):
-		_activate_attack()
-	elif event.is_action_pressed(&"dodge"):
-		_activate_dodge()
-	elif event.is_action_pressed(&"place_mine"):
-		_activate_place_mine()
-
-# ====== HELPERS ========
-func _attach_player_control() -> void:
-	if _control_attached:
+	if kernel == null or kernel.get_object_context() == null:
+		push_error("Player kernel must be bound before start_runtime().")
 		return
-	if kernel == null or control_arbiter == null or control_endpoint == null:
-		return
-	if player_input_source == null or kernel.get_object_context() == null:
+	if control_arbiter == null or control_endpoint == null or player_input_source == null:
+		push_error("Player control dependencies are incomplete.")
 		return
 
 	player_input_source.set_execution_context_factory(
 		func(cause: StringName, label: String) -> GameExecutionContext:
-			return kernel.get_object_context().create_root_execution_context(
-				cause,
-				label
-			)
+			return kernel.get_object_context().create_root_execution_context(cause, label)
 	)
-
 	var result: GameCommandResult = player_input_source.attach(
 		control_endpoint,
 		control_arbiter
 	)
-
 	if not result.is_success():
+		push_error(result.get_debug_message())
 		return
-
 	player_input_source.request_control()
-	_control_attached = true
 
-func _activate_attack() -> void:
-	var payload: Dictionary = {
-		"actor_node": self,
-		"targeting_service": targeting_service,
-	}
-	activate_ability(&"simple.ability.player.attack", payload)
+	if death_policy != null and not death_policy.died.is_connected(_on_died):
+		death_policy.died.connect(_on_died)
+	_runtime_started = true
 
-func _activate_dodge() -> void:
-	var payload: Dictionary = {
-		"dodge_callable": _perform_simple_dodge,
-	}
-	activate_ability(&"simple.ability.player.dodge", payload)
-
-func _activate_place_mine() -> void:
-	var payload: Dictionary = {
-		"spawn_mine_callable": _request_mine_spawn,
-	}
-	activate_ability(&"simple.ability.player.place_mine", payload)
-
-func _perform_simple_dodge() -> GameCommandResult:
-	var direction: Vector3 = -global_transform.basis.z
-	direction.y = 0.0
-
-	if direction.is_zero_approx():
-		return GameCommandResult.rejected_temporary(
-			&"simple_dodge_no_direction",
-			"Simple dodge has no valid direction."
-		)
-
-	move_and_collide(direction.normalized() * simple_dodge_distance)
-	return GameCommandResult.success_changed(&"simple_dodge_completed")
-
-func _request_mine_spawn() -> GameCommandResult:
-	if kernel == null or kernel.get_object_context() == null:
-		return GameCommandResult.rejected_temporary(
-			&"simple_mine_owner_unresolved",
-			"Player context is unresolved."
-		)
-
-	if mine_placement_marker == null:
+## Called by a project sensing/raycast adapter after it resolves an interactable handle.
+func focus_interaction(target_handle: GameObjectHandle) -> GameCommandResult:
+	if interaction_source == null or kernel == null or kernel.get_object_context() == null:
 		return GameCommandResult.configuration_error(
-			&"simple_mine_marker_missing",
-			"MinePlacementMarker is not configured."
+			&"interaction_source_missing",
+			"Player interaction source is not configured."
 		)
-
-	var owner_handle: GameObjectHandle = (
-		kernel.get_object_context().get_object_handle()
-	)
-
-	mine_spawn_requested.emit(
-		owner_handle,
-		mine_placement_marker.global_transform
-	)
-
-	return GameCommandResult.success_changed(&"simple_mine_spawn_requested")
-
-# ====== PUBLIC ========
-func activate_ability(
-	ability_id: StringName,
-	activation_payload: Dictionary = {}
-) -> GameCommandResult:
-	if abilities == null or kernel == null:
-		return GameCommandResult.configuration_error(
-			&"simple_player_ability_dependencies_missing",
-			"Player ability dependencies are not configured."
-		)
-
-	var context: GameObjectContext = kernel.get_object_context()
-	if context == null:
-		return GameCommandResult.rejected_temporary(
-			&"simple_player_context_unresolved",
-			"Player context is unresolved."
-		)
-
 	var execution_context: GameExecutionContext = (
-		context.create_root_execution_context(
-			&"simple.player.ability",
-			"Player ability activation"
+		kernel.get_object_context().create_root_execution_context(
+			&"simple.player.focus_interaction",
+			"Player interaction focus"
 		)
 	)
+	return interaction_source.set_focus(target_handle, execution_context)
 
-	var owner_handle: GameObjectHandle = context.get_object_handle()
-	var request := GameAbilityActivationRequest.new(
-		ability_id,
-		owner_handle,
-		execution_context,
-		owner_handle
-	)
-	request.set_activation_payload(activation_payload)
-
-	return abilities.activate(request)
-
-func mark_dead() -> void:
+# ====== HANDLERS ========
+func _on_died(_execution_context: GameExecutionContext) -> void:
 	if _dead:
 		return
-
 	_dead = true
+	if player_input_source != null:
+		player_input_source.suspend()
 	player_died.emit()
 ```
 
-`mark_dead()` — явная точка, к которой подключается ваш death bridge/policy. Не проверяйте health каждый physics frame.
+Если у `GameControlSource` вашей сцены не требуется отдельный `suspend()` call при смерти, можно вместо него release/cancel control в вашем death orchestration. Смысл примера: реакция происходит от `GameDeathPolicy.died`, а не от polling meter.
 
-> `interact` намеренно отсутствует в `_unhandled_input()`: production interaction подключается как обычный `GameAbilityInputBinding` (`interact → slot.interaction`) и активирует универсальную `simple.ability.player.interact` через control/loadout pipeline.
+Player Inspector data:
+
+```text
+GameAbilities.initial_abilities:
+- simple.ability.player.attack
+- simple.ability.player.dodge
+- simple.ability.player.place_mine
+- simple.ability.player.interact
+
+GameAbilityLoadout.initial_slots:
+- slot.primary     -> attack
+- slot.mobility    -> dodge
+- slot.utility_1   -> place_mine
+- slot.interaction -> interact
+
+GamePlayerInputSource.ability_input_bindings:
+- attack     -> slot.primary
+- dodge      -> slot.mobility
+- place_mine -> slot.utility_1
+- interact   -> slot.interaction
+```
 
 ---
 
 # 3. `game_attack_operation_simple.gd`
 
-Путь:
-
-```text
-res://content/gameplay/simple_scene/abilities/game_attack_operation_simple.gd
-```
-
-Один класс можно переиспользовать для Player и Monster, создав **два разных operation resource** с разными параметрами.
+Один class используется и Player, и Monster. Разными resources задайте damage/radius/required_tags.
 
 ```gdscript
 @tool
@@ -410,29 +253,26 @@ func execute(
 		)
 
 	var request: GameAbilityActivationRequest = execution.get_request()
-	var payload: Dictionary = request.get_activation_payload()
-	var actor: Node3D = payload.get("actor_node") as Node3D
-	var targeting_service: GameTargetingService = (
-		payload.get("targeting_service") as GameTargetingService
-	)
-
-	if actor == null or targeting_service == null:
-		return GameCommandResult.configuration_error(
-			&"simple_attack_dependencies_missing",
-			"Attack actor or targeting service is missing."
-		)
-
 	var source_handle: GameObjectHandle = request.get_owner_handle()
 	if source_handle == null or not source_handle.is_resolved():
-		return GameCommandResult.rejected_temporary(
-			&"simple_attack_owner_unresolved",
-			"Attack owner handle is unresolved."
+		return GameCommandResult.invalid_target("Attack owner is unresolved.")
+
+	var actor: Node3D = source_handle.get_root() as Node3D
+	var source_context: GameObjectContext = source_handle.get_context()
+	if actor == null or source_context == null:
+		return GameCommandResult.invalid_target("Attack owner root/context is unavailable.")
+
+	var targeting_service: GameTargetingService = (
+		source_context.get_world_port(GameWorldPortIds.TARGETING_QUERY)
+		as GameTargetingService
+	)
+	if targeting_service == null:
+		return GameCommandResult.configuration_error(
+			&"simple_attack_targeting_missing",
+			"Owner has no targeting world port."
 		)
 
-	var excluded_ids: Array[StringName] = [
-		source_handle.get_stable_id()
-	]
-
+	var excluded_ids: Array[StringName] = [source_handle.get_stable_id()]
 	var query: Dictionary = targeting_service.query_sphere(
 		actor.global_position,
 		attack_radius,
@@ -440,22 +280,18 @@ func execute(
 		required_tags,
 		excluded_ids
 	)
-
 	var affected_count: int = 0
 
-	for handle_value: Variant in query.get("handles", []):
-		var target_handle: GameObjectHandle = handle_value as GameObjectHandle
+	for value: Variant in query.get("handles", []):
+		var target_handle: GameObjectHandle = value as GameObjectHandle
 		if target_handle == null or not target_handle.is_resolved():
 			continue
-
 		var target_context: GameObjectContext = target_handle.get_context()
 		if target_context == null:
 			continue
-
 		var receiver: GameDamageReceiver = target_context.get_capability(
 			GameCapabilityIds.DAMAGE_RECEIVER
 		) as GameDamageReceiver
-
 		if receiver == null:
 			continue
 
@@ -467,55 +303,33 @@ func execute(
 			damage_tags,
 			execution.get_execution_context()
 		)
-
 		if receiver.apply_damage(damage_request).is_success():
 			affected_count += 1
 
-	if affected_count <= 0:
+	if affected_count == 0:
 		return GameCommandResult.success_unchanged(&"simple_attack_no_targets")
-
-	return GameCommandResult.success_changed(&"simple_attack_applied")
+	return GameCommandResult.success_changed(
+		&"simple_attack_applied",
+		affected_count
+	)
 
 func is_valid() -> bool:
 	return attack_radius > 0.0 and attack_damage >= 0.0
-```
-
-Настройка Player operation:
-
-```text
-attack_radius = 2.0
-attack_damage = 25
-required_tags = [faction.monster]
-damage_tags   = [damage.melee]
-```
-
-Настройка Monster operation:
-
-```text
-attack_radius = 1.8
-attack_damage = 15
-required_tags = [faction.player]
-damage_tags   = [damage.melee]
 ```
 
 ---
 
 # 4. `game_dodge_operation_simple.gd`
 
-Путь:
-
-```text
-res://content/gameplay/simple_scene/abilities/game_dodge_operation_simple.gd
-```
-
-Operation не двигает CharacterBody напрямую. Она просит owner-level glue выполнить конкретный dodge. Так Resource не хранит ссылку на конкретный Node сцены.
+Это учебный one-step fallback. Он не требует callback в activation payload.
 
 ```gdscript
 @tool
 extends GameAbilityOperation
 class_name GameDodgeOperationSimple
 
-# ====== PUBLIC ========
+@export_range(0.0, 10.0, 0.1) var distance: float = 4.0
+
 func execute(
 	_abilities: GameAbilities,
 	execution: GameAbilityExecution
@@ -525,60 +339,45 @@ func execute(
 			&"simple_dodge_execution_missing",
 			"Dodge execution is missing."
 		)
-
-	var payload: Dictionary = (
-		execution.get_request().get_activation_payload()
-	)
-	var dodge_callable: Callable = payload.get(
-		"dodge_callable",
-		Callable()
-	)
-
-	if not dodge_callable.is_valid():
-		return GameCommandResult.configuration_error(
-			&"simple_dodge_callable_missing",
-			"Dodge callable is missing."
+	var owner_handle: GameObjectHandle = execution.get_request().get_owner_handle()
+	if owner_handle == null or not owner_handle.is_resolved():
+		return GameCommandResult.invalid_target("Dodge owner is unresolved.")
+	var body: CharacterBody3D = owner_handle.get_root() as CharacterBody3D
+	if body == null:
+		return GameCommandResult.invalid_target(
+			"Simple dodge requires CharacterBody3D owner root."
 		)
-
-	var result: Variant = dodge_callable.call()
-	var command_result: GameCommandResult = result as GameCommandResult
-
-	if command_result == null:
-		return GameCommandResult.configuration_error(
-			&"simple_dodge_result_invalid",
-			"Dodge callable must return GameCommandResult."
+	var direction: Vector3 = -body.global_transform.basis.z
+	direction.y = 0.0
+	if direction.is_zero_approx():
+		return GameCommandResult.rejected_temporary(
+			&"simple_dodge_no_direction",
+			"Dodge direction is empty."
 		)
+	body.move_and_collide(direction.normalized() * distance)
+	return GameCommandResult.success_changed(&"simple_dodge_completed")
 
-	return command_result
+func is_valid() -> bool:
+	return distance >= 0.0
 ```
 
-Production evolution:
-
-```text
-GameDodgeOperationSimple
-→ request/preempt movement control
-→ dash over duration
-→ optional status.invulnerable
-→ release movement control
-→ GameControlArbiter restores previous owner
-```
-
-Не добавляйте i-frames, пока не проверили, что control channel всегда освобождается.
+Production dash должен перейти на отдельный movement/control adapter, если нужен duration, animation curve, temporary ownership или i-frames.
 
 ---
 
 # 5. `game_place_mine_operation_simple.gd`
 
-Путь:
-
-```text
-res://content/gameplay/simple_scene/abilities/game_place_mine_operation_simple.gd
-```
+Mine создаётся через текущий `GameSpawnService`. `spawn()` возвращает `GameObjectHandle` в `GameCommandResult.payload`.
 
 ```gdscript
 @tool
 extends GameAbilityOperation
 class_name GamePlaceMineOperationSimple
+
+# ======== EXPORT =========
+@export_file("*.tscn") var mine_scene_path: String = ""
+@export_range(0.0, 10.0, 0.1) var forward_offset: float = 1.5
+@export var burning_effect: GameEffectDefinition = null
 
 # ====== PUBLIC ========
 func execute(
@@ -587,58 +386,84 @@ func execute(
 ) -> GameCommandResult:
 	if execution == null or execution.get_request() == null:
 		return GameCommandResult.configuration_error(
-			&"simple_place_mine_execution_missing",
+			&"simple_mine_execution_missing",
 			"Place-mine execution is missing."
 		)
-
-	var payload: Dictionary = (
-		execution.get_request().get_activation_payload()
-	)
-	var spawn_callable: Callable = payload.get(
-		"spawn_mine_callable",
-		Callable()
-	)
-
-	if not spawn_callable.is_valid():
+	if mine_scene_path.is_empty():
 		return GameCommandResult.configuration_error(
-			&"simple_mine_spawn_callable_missing",
-			"Mine spawn callable is missing."
+			&"simple_mine_scene_missing",
+			"Mine scene path is empty."
 		)
 
-	var result: Variant = spawn_callable.call()
-	var command_result: GameCommandResult = result as GameCommandResult
+	var owner_handle: GameObjectHandle = execution.get_request().get_owner_handle()
+	if owner_handle == null or not owner_handle.is_resolved():
+		return GameCommandResult.invalid_target("Mine owner is unresolved.")
+	var owner_root: Node3D = owner_handle.get_root() as Node3D
+	var owner_context: GameObjectContext = owner_handle.get_context()
+	if owner_root == null or owner_context == null:
+		return GameCommandResult.invalid_target("Mine owner root/context is unavailable.")
 
-	if command_result == null:
+	var spawn_service: GameSpawnService = owner_context.get_world_port(
+		GameWorldPortIds.SPAWN_REQUEST
+	) as GameSpawnService
+	if spawn_service == null:
 		return GameCommandResult.configuration_error(
-			&"simple_mine_spawn_result_invalid",
-			"Mine spawn callable must return GameCommandResult."
+			&"simple_spawn_service_missing",
+			"Owner has no spawn world port."
 		)
 
-	return command_result
+	var spawn_transform: Transform3D = owner_root.global_transform
+	spawn_transform.origin += -owner_root.global_transform.basis.z.normalized() * forward_offset
+
+	var spawn_result: GameCommandResult = spawn_service.spawn(
+		mine_scene_path,
+		spawn_transform,
+		execution.get_execution_context()
+	)
+	if not spawn_result.is_success():
+		return spawn_result
+
+	var mine_handle: GameObjectHandle = spawn_result.get_payload() as GameObjectHandle
+	if mine_handle == null or not mine_handle.is_resolved():
+		return GameCommandResult.configuration_error(
+			&"simple_spawn_payload_invalid",
+			"Spawn service did not return a resolved GameObjectHandle."
+		)
+	var mine: GameMineSimple = mine_handle.get_root() as GameMineSimple
+	if mine == null:
+		return GameCommandResult.configuration_error(
+			&"simple_spawned_mine_type_invalid",
+			"Spawned root is not GameMineSimple."
+		)
+
+	mine.owner_handle = owner_handle
+	mine.instigator_handle = owner_handle
+	mine.targeting_service = owner_context.get_world_port(
+		GameWorldPortIds.TARGETING_QUERY
+	) as GameTargetingService
+	mine.spawn_service = spawn_service
+	mine.burning_effect = burning_effect
+	mine.arm_after_delay()
+
+	return GameCommandResult.success_changed(&"simple_mine_spawned", mine_handle)
+
+func is_valid() -> bool:
+	return not mine_scene_path.is_empty() and forward_offset >= 0.0
 ```
 
-Здесь operation не ищет `MainScene` через `get_parent()`. Player сообщает запрос наверх signal-ом, а `GameSimpleScene` создаёт mine instance.
+Текущий `GameSpawnService.spawn()` не inject-ит world ports в spawned kernel. Поэтому Mine получает нужные post-spawn services явно.
 
 ---
 
 # 6. `game_monster_simple.gd`
 
-Путь:
-
-```text
-res://content/gameplay/simple_scene/monster/game_monster_simple.gd
-```
+AI state machine выражает attack через `GameMockAIControlSource.use_ability()`, а не через direct `GameAbilities.activate()`.
 
 ```gdscript
 extends CharacterBody3D
 class_name GameMonsterSimple
 
-enum State {
-	PATROL,
-	CHASE,
-	ATTACK,
-	DEAD,
-}
+enum State { PATROL, CHASE, ATTACK, DEAD }
 
 signal state_changed(state: State)
 signal monster_died()
@@ -650,185 +475,56 @@ signal monster_died()
 @export var ai_control_source: GameMockAIControlSource = null
 @export var abilities: GameAbilities = null
 @export var effects: GameEffects = null
+@export var death_policy: GameDeathPolicy = null
 @export var navigation_agent: NavigationAgent3D = null
-@export var targeting_service: GameTargetingService = null
 @export_range(0.1, 50.0, 0.1) var detect_distance: float = 10.0
 @export_range(0.1, 50.0, 0.1) var lose_distance: float = 14.0
 @export_range(0.1, 10.0, 0.1) var attack_distance: float = 1.8
 
 # ======== PRIVATE VAR ======
 var _state: State = State.PATROL
-var _control_attached: bool = false
+var _runtime_started: bool = false
 var _target: Node3D = null
 var _patrol_points: Array[Marker3D] = []
 var _patrol_index: int = 0
 
 # ======= OVERRIDE =======
-func _ready() -> void:
-	_attach_ai_control()
-
 func _physics_process(delta: float) -> void:
+	if not _runtime_started:
+		return
 	_tick_ai()
-
 	if abilities != null:
 		abilities.advance_time(delta)
-
 	if effects != null and kernel != null and kernel.get_object_context() != null:
-		var execution_context: GameExecutionContext = (
+		effects.advance_time(
+			delta,
 			kernel.get_object_context().create_root_execution_context(
-				&"simple.monster.tick",
-				"Simple monster scheduler"
+				&"simple.monster.effects_tick",
+				"Monster effects tick"
 			)
 		)
-		effects.advance_time(delta, execution_context)
-
 	if kernel != null:
 		kernel.process_execution_queue()
 
-# ====== HELPERS ========
-func _attach_ai_control() -> void:
-	if _control_attached:
+# ====== PUBLIC ========
+func start_runtime() -> void:
+	if _runtime_started:
 		return
-	if kernel == null or control_arbiter == null or control_endpoint == null:
+	if kernel == null or kernel.get_object_context() == null:
+		push_error("Monster kernel must be bound before start_runtime().")
 		return
-	if ai_control_source == null or kernel.get_object_context() == null:
-		return
-
 	var result: GameCommandResult = ai_control_source.attach(
 		control_endpoint,
 		control_arbiter
 	)
-
 	if not result.is_success():
+		push_error(result.get_debug_message())
 		return
-
 	ai_control_source.request_control()
-	_control_attached = true
+	if death_policy != null and not death_policy.died.is_connected(_on_died):
+		death_policy.died.connect(_on_died)
+	_runtime_started = true
 
-func _tick_ai() -> void:
-	if not _control_attached or _state == State.DEAD:
-		return
-	if kernel == null or kernel.get_object_context() == null:
-		return
-
-	var target_distance: float = INF
-	if _target != null:
-		target_distance = global_position.distance_to(_target.global_position)
-
-	match _state:
-		State.PATROL:
-			if _target != null and target_distance <= detect_distance:
-				_set_state(State.CHASE)
-				return
-			_tick_patrol()
-
-		State.CHASE:
-			if _target == null or target_distance > lose_distance:
-				_set_state(State.PATROL)
-				return
-			if target_distance <= attack_distance:
-				_set_state(State.ATTACK)
-				return
-			_move_toward(_target.global_position)
-
-		State.ATTACK:
-			_stop_movement()
-			if _target == null or target_distance > attack_distance:
-				_set_state(State.CHASE)
-				return
-			_activate_attack()
-
-func _tick_patrol() -> void:
-	if _patrol_points.is_empty():
-		_stop_movement()
-		return
-
-	var marker: Marker3D = _patrol_points[_patrol_index]
-	if marker == null:
-		_advance_patrol_point()
-		return
-
-	if global_position.distance_to(marker.global_position) <= 0.6:
-		_advance_patrol_point()
-		return
-
-	_move_toward(marker.global_position)
-
-func _advance_patrol_point() -> void:
-	if _patrol_points.is_empty():
-		return
-	_patrol_index = (_patrol_index + 1) % _patrol_points.size()
-
-func _move_toward(target_position: Vector3) -> void:
-	if navigation_agent == null:
-		return
-
-	navigation_agent.target_position = target_position
-	var next_position: Vector3 = navigation_agent.get_next_path_position()
-	var direction: Vector3 = next_position - global_position
-	direction.y = 0.0
-
-	if direction.is_zero_approx():
-		_stop_movement()
-		return
-
-	var context: GameExecutionContext = (
-		kernel.get_object_context().create_root_execution_context(
-			&"simple.monster.move",
-			"Monster movement"
-		)
-	)
-	ai_control_source.move(direction.normalized(), 1.0, context)
-
-func _stop_movement() -> void:
-	if ai_control_source == null or kernel == null:
-		return
-	if kernel.get_object_context() == null:
-		return
-
-	var context: GameExecutionContext = (
-		kernel.get_object_context().create_root_execution_context(
-			&"simple.monster.stop",
-			"Monster stop"
-		)
-	)
-	ai_control_source.stop(context)
-
-func _activate_attack() -> void:
-	if abilities == null or kernel == null:
-		return
-
-	var context: GameObjectContext = kernel.get_object_context()
-	if context == null:
-		return
-
-	var execution_context: GameExecutionContext = (
-		context.create_root_execution_context(
-			&"simple.monster.attack",
-			"Monster attack"
-		)
-	)
-	var owner_handle: GameObjectHandle = context.get_object_handle()
-	var request := GameAbilityActivationRequest.new(
-		&"simple.ability.monster.attack",
-		owner_handle,
-		execution_context,
-		owner_handle
-	)
-	request.set_activation_payload({
-		"actor_node": self,
-		"targeting_service": targeting_service,
-	})
-
-	abilities.activate(request)
-
-func _set_state(value: State) -> void:
-	if _state == value:
-		return
-	_state = value
-	state_changed.emit(_state)
-
-# ====== PUBLIC ========
 func set_target(value: Node3D) -> void:
 	_target = value
 
@@ -836,42 +532,111 @@ func set_patrol_points(value: Array[Marker3D]) -> void:
 	_patrol_points = value.duplicate()
 	_patrol_index = 0
 
-func mark_dead() -> void:
+# ====== HELPERS ========
+func _tick_ai() -> void:
+	if _state == State.DEAD or ai_control_source == null:
+		return
+	var distance: float = INF
+	if _target != null:
+		distance = global_position.distance_to(_target.global_position)
+
+	match _state:
+		State.PATROL:
+			if _target != null and distance <= detect_distance:
+				_set_state(State.CHASE)
+				return
+			_tick_patrol()
+		State.CHASE:
+			if _target == null or distance > lose_distance:
+				_set_state(State.PATROL)
+				return
+			if distance <= attack_distance:
+				_set_state(State.ATTACK)
+				return
+			_move_toward(_target.global_position)
+		State.ATTACK:
+			_stop_movement()
+			if _target == null or distance > attack_distance:
+				_set_state(State.CHASE)
+				return
+			_request_attack()
+
+func _tick_patrol() -> void:
+	if _patrol_points.is_empty():
+		_stop_movement()
+		return
+	var marker: Marker3D = _patrol_points[_patrol_index]
+	if marker == null:
+		_advance_patrol()
+		return
+	if global_position.distance_to(marker.global_position) <= 0.6:
+		_advance_patrol()
+		return
+	_move_toward(marker.global_position)
+
+func _advance_patrol() -> void:
+	if not _patrol_points.is_empty():
+		_patrol_index = (_patrol_index + 1) % _patrol_points.size()
+
+func _move_toward(point: Vector3) -> void:
+	if navigation_agent == null or kernel == null or kernel.get_object_context() == null:
+		return
+	navigation_agent.target_position = point
+	var direction: Vector3 = navigation_agent.get_next_path_position() - global_position
+	direction.y = 0.0
+	if direction.is_zero_approx():
+		_stop_movement()
+		return
+	ai_control_source.move(
+		direction.normalized(),
+		1.0,
+		kernel.get_object_context().create_root_execution_context(
+			&"simple.monster.move",
+			"Monster movement"
+		)
+	)
+
+func _stop_movement() -> void:
+	if ai_control_source == null or kernel == null or kernel.get_object_context() == null:
+		return
+	ai_control_source.stop(
+		kernel.get_object_context().create_root_execution_context(
+			&"simple.monster.stop",
+			"Monster stop"
+		)
+	)
+
+func _request_attack() -> void:
+	if ai_control_source == null or kernel == null or kernel.get_object_context() == null:
+		return
+	ai_control_source.use_ability(
+		&"simple.ability.monster.attack",
+		[],
+		kernel.get_object_context().create_root_execution_context(
+			&"simple.monster.attack",
+			"Monster attack"
+		)
+	)
+
+func _set_state(value: State) -> void:
+	if _state == value:
+		return
+	_state = value
+	state_changed.emit(_state)
+
+func _on_died(_execution_context: GameExecutionContext) -> void:
 	if _state == State.DEAD:
 		return
-
 	_set_state(State.DEAD)
 	_stop_movement()
 	monster_died.emit()
 ```
 
-Cooldown ability должен ограничивать частоту `_activate_attack()`. AI может просить activation каждый physics tick в `ATTACK`, а `GameAbilities` будет возвращать structured rejection, пока cooldown активен.
+Cooldown ability сам отклоняет частые attack intents; AI не обязан хранить отдельный attack timer.
 
 ---
 
-# 7. Дверь: target-owned abilities вместо command dispatcher
-
-Главное правило этого примера:
-
-```text
-Character / NPC / AI
-→ ability.interact
-→ semantic interaction request
-→ Door.GameInteractionTarget
-→ Door reaction
-→ Door.GameAbilities
-→ ability.door.open / ability.door.close
-```
-
-Ни `GamePlayerInputSource`, ни `GameInteractionSource`, ни другой внешний код не проверяет `GameDoorSimple`, не вызывает `has_method()` и не знает методов двери.
-
-## 7.1. `game_door_simple.gd`
-
-Путь:
-
-```text
-res://content/gameplay/simple_scene/door/game_door_simple.gd
-```
+# 7. `game_door_simple.gd`
 
 ```gdscript
 extends AnimatableBody3D
@@ -880,91 +645,66 @@ class_name GameDoorSimple
 signal door_opened()
 signal door_closed()
 
-# ======= CONSTS =========
-const OPEN_TAG: StringName = &"state.open"
-const STATE_SOURCE_ID: StringName = &"simple.door.state"
-
-# ======== EXPORT =========
-@export var hinge: Node3D = null
+@export var kernel: GameObjectKernel = null
 @export var tags: GameTagContainer = null
+@export var hinge: Node3D = null
 @export_range(0.0, 170.0, 1.0) var open_angle_degrees: float = 95.0
 
-# ======== PRIVATE VAR ======
 var _is_open: bool = false
 var _open_tag_handle: GameTagSourceHandle = null
 
-# ======= OVERRIDE =======
 func _ready() -> void:
 	_refresh_visual()
 
-# ====== HELPERS ========
-func _refresh_visual() -> void:
-	if hinge != null:
-		hinge.rotation_degrees.y = open_angle_degrees if _is_open else 0.0
-
-func _add_open_tag() -> bool:
-	if tags == null:
-		return false
-	if _open_tag_handle != null and _open_tag_handle.is_valid():
-		return true
-	_open_tag_handle = tags.add_tag(OPEN_TAG, STATE_SOURCE_ID)
-	return _open_tag_handle != null
-
-func _remove_open_tag() -> void:
-	if tags == null or _open_tag_handle == null:
-		return
-	tags.remove_tag(_open_tag_handle)
-	_open_tag_handle = null
-
-# ====== PUBLIC ========
-## Target-local state API. Interaction systems never call this method directly;
-## only door-owned ability operations do.
-func set_open(value: bool) -> GameCommandResult:
-	if value == _is_open:
+func set_open_state(value: bool) -> GameCommandResult:
+	if _is_open == value:
 		return GameCommandResult.success_unchanged(
 			&"door_already_open" if value else &"door_already_closed"
 		)
-
-	if value and not _add_open_tag():
+	if tags == null:
 		return GameCommandResult.configuration_error(
-			&"door_open_tag_failed",
-			"Door requires gameplay tag 'state.open' in its tag catalog."
+			&"door_tags_missing",
+			"Door requires GameTagContainer."
 		)
-	if not value:
-		_remove_open_tag()
+
+	if value:
+		_open_tag_handle = tags.add_tag(&"state.open", &"simple.door.state")
+		if _open_tag_handle == null:
+			return GameCommandResult.configuration_error(
+				&"door_open_tag_rejected",
+				"GameTagContainer rejected state.open. Configure the tag catalog."
+			)
+	else:
+		if _open_tag_handle != null:
+			tags.remove_tag(_open_tag_handle)
+		_open_tag_handle = null
 
 	_is_open = value
 	_refresh_visual()
 	if _is_open:
 		door_opened.emit()
 		return GameCommandResult.success_changed(&"door_opened")
-
 	door_closed.emit()
 	return GameCommandResult.success_changed(&"door_closed")
 
-func is_open() -> bool:
-	return _is_open
+func _refresh_visual() -> void:
+	if hinge != null:
+		hinge.rotation_degrees.y = open_angle_degrees if _is_open else 0.0
 ```
 
-Здесь есть `set_open()`, но это **не interaction dispatcher** и не публичный protocol для внешнего мира. Это локальная реализация состояния конкретной двери. Generic interaction code никогда не знает об этом методе.
+Door no longer rebuilds offers.
 
-## 7.2. `game_door_set_open_operation_simple.gd`
+---
 
-Путь:
-
-```text
-res://content/gameplay/simple_scene/door/game_door_set_open_operation_simple.gd
-```
+# 8. `game_door_set_open_operation_simple.gd`
 
 ```gdscript
 @tool
 extends GameAbilityOperation
 class_name GameDoorSetOpenOperationSimple
 
-# ======== EXPORT =========
 @export var open: bool = true
 
-# ====== PUBLIC ========
 func execute(
 	_abilities: GameAbilities,
 	execution: GameAbilityExecution
@@ -972,123 +712,29 @@ func execute(
 	if execution == null or execution.get_request() == null:
 		return GameCommandResult.configuration_error(
 			&"door_execution_missing",
-			"Door ability execution is incomplete."
+			"Door ability execution is missing."
 		)
-
-	var owner_handle: GameObjectHandle = (
-		execution.get_request().get_owner_handle()
-	)
+	var owner_handle: GameObjectHandle = execution.get_request().get_owner_handle()
 	if owner_handle == null or not owner_handle.is_resolved():
-		return GameCommandResult.invalid_target(
-			"Door ability owner is unresolved."
-		)
-
+		return GameCommandResult.invalid_target("Door owner is unresolved.")
 	var door: GameDoorSimple = owner_handle.get_root() as GameDoorSimple
 	if door == null:
-		return GameCommandResult.invalid_target(
-			"Door ability owner root does not provide GameDoorSimple state."
-		)
-
-	return door.set_open(open)
+		return GameCommandResult.invalid_target("Door ability owner is not GameDoorSimple.")
+	return door.set_open_state(open)
 ```
 
-Это game-specific operation **локальной door ability**. Тип `GameDoorSimple` известен только реализации самой двери. Interaction framework и инициатор взаимодействия его не знают.
-
-## 7.3. Door abilities
-
-Создайте две `GameAbilityDefinition`:
+Door abilities:
 
 ```text
-simple.ability.door.open
-    blocked_owner_tags = [state.open]
-    operations:
-        GameDoorSetOpenOperationSimple(open = true)
-
-simple.ability.door.close
-    required_owner_tags = [state.open]
-    operations:
-        GameDoorSetOpenOperationSimple(open = false)
+open  blocked_owner_tags  = [state.open]
+close required_owner_tags = [state.open]
 ```
 
-Добавьте их в `Door/GameObjectKernel/GameAbilities.initial_abilities`.
-
-Обязательно добавьте `state.open` в `GameTagCatalog`, назначенный двери. Именно ability requirements, а не `_refresh_offers()`, определяют текущее состояние доступности `open/close`.
-
-## 7.4. Door reactions
-
-В `GameInteractionTarget.reactions` назначьте два `GameInteractionReaction`:
-
-```text
-Open reaction
-    offer_id             = simple.door.open
-    intent_id            = open
-    verb_id              = verb.open
-    ability_id           = simple.ability.door.open
-    priority             = 50
-    default_candidate    = true
-
-Close reaction
-    offer_id             = simple.door.close
-    intent_id            = close
-    verb_id              = verb.close
-    ability_id           = simple.ability.door.close
-    priority             = 50
-    default_candidate    = true
-```
-
-Когда дверь закрыта, `simple.ability.door.close` не проходит `required_owner_tags`, поэтому `query_offers()` публикует только `open`. После успешного открытия появляется `state.open`, `open` становится недоступен, а `close` — доступен.
-
-Никакого ручного:
-
-```text
-_refresh_offers()
-execute_door_command()
-if target is Door
-has_method("open")
-```
-
-не требуется.
-
-## 7.5. Обычное и направленное взаимодействие
-
-У Player/NPC создайте универсальную ability:
-
-```text
-simple.ability.player.interact
-└── GameInteractionAbilityOperation
-```
-
-Обычная кнопка interaction активирует её без semantic intent:
-
-```text
-interact
-→ slot.interaction
-→ simple.ability.player.interact
-→ focused target
-→ default currently available reaction
-```
-
-Для закрытой двери получится `open`, для открытой — `close`.
-
-AI/cutscene может активировать **ту же ability**, но передать намерение:
-
-```gdscript
-request.set_activation_payload({
-	GameInteractionRequest.ACTIVATION_INTENT_KEY: &"open",
-})
-```
-
-Тогда `GameInteractionTarget` рассматривает только реакции `intent_id == open`. Если дверь уже открыта или открывается и `door.open` недоступна по requirements/concurrency, запрос получит rejection от `door.open`; он **не превратится в close**.
+`GameInteractionTarget.reactions` map semantic `open/close` to these abilities. Source code never calls `door.open()`/`door.close()`.
 
 ---
 
-# 8. `game_barrel_simple.gd`
-
-Путь:
-
-```text
-res://content/gameplay/simple_scene/barrel/game_barrel_simple.gd
-```
+# 9. `game_barrel_simple.gd`
 
 ```gdscript
 extends StaticBody3D
@@ -1096,145 +742,124 @@ class_name GameBarrelSimple
 
 signal barrel_exploded(affected_count: int)
 
-# ======== EXPORT =========
 @export var kernel: GameObjectKernel = null
-@export var targeting_service: GameTargetingService = null
+@export var death_policy: GameDeathPolicy = null
 @export_range(0.1, 20.0, 0.1) var explosion_radius: float = 3.5
 @export_range(0.0, 10000.0, 0.1) var explosion_damage: float = 45.0
 
-# ======== PRIVATE VAR ======
 var _exploded: bool = false
 
-# ====== PUBLIC ========
-func explode(instigator_handle: GameObjectHandle = null) -> void:
+func _ready() -> void:
+	if death_policy != null and not death_policy.died.is_connected(_on_died):
+		death_policy.died.connect(_on_died)
+
+func explode(execution_context: GameExecutionContext = null) -> void:
 	if _exploded:
 		return
 	_exploded = true
-
 	if kernel == null or kernel.get_object_context() == null:
 		barrel_exploded.emit(0)
 		return
 
 	var context: GameObjectContext = kernel.get_object_context()
 	var barrel_handle: GameObjectHandle = context.get_object_handle()
-	var effective_instigator: GameObjectHandle = instigator_handle
-
-	if effective_instigator == null:
-		effective_instigator = barrel_handle
-
-	var execution_context: GameExecutionContext = (
-		context.create_root_execution_context(
+	var causal_context: GameExecutionContext = execution_context
+	if causal_context == null:
+		causal_context = context.create_root_execution_context(
 			&"simple.barrel.explosion",
 			"Barrel explosion"
 		)
-	)
-
-	var affected_count: int = apply_radial_damage(
+	var targeting_service: GameTargetingService = context.get_world_port(
+		GameWorldPortIds.TARGETING_QUERY
+	) as GameTargetingService
+	var affected_count: int = _apply_radial_damage(
+		targeting_service,
 		barrel_handle,
-		effective_instigator,
-		global_position,
-		explosion_radius,
-		explosion_damage,
-		[&"damage.explosion"],
-		execution_context
+		barrel_handle,
+		causal_context
 	)
-
 	barrel_exploded.emit(affected_count)
-	set_deferred("collision_layer", 0)
-	set_deferred("collision_mask", 0)
-	call_deferred("queue_free")
 
-func apply_radial_damage(
+	var spawn_service: GameSpawnService = context.get_world_port(
+		GameWorldPortIds.DESPAWN_REQUEST
+	) as GameSpawnService
+	if spawn_service != null:
+		spawn_service.despawn(barrel_handle, &"barrel_exploded", true)
+	else:
+		queue_free()
+
+func _apply_radial_damage(
+	targeting_service: GameTargetingService,
 	source_handle: GameObjectHandle,
 	instigator_handle: GameObjectHandle,
-	center: Vector3,
-	radius: float,
-	damage: float,
-	damage_tags: Array[StringName],
 	execution_context: GameExecutionContext
 ) -> int:
-	if targeting_service == null or source_handle == null:
+	if targeting_service == null:
 		return 0
-
-	var excluded_ids: Array[StringName] = [
-		source_handle.get_stable_id()
-	]
 	var query: Dictionary = targeting_service.query_sphere(
-		center,
-		radius,
+		global_position,
+		explosion_radius,
 		GameCapabilityIds.DAMAGE_RECEIVER,
 		[],
-		excluded_ids
+		[source_handle.get_stable_id()]
 	)
 	var affected_count: int = 0
-
-	for handle_value: Variant in query.get("handles", []):
-		var target_handle: GameObjectHandle = handle_value as GameObjectHandle
+	for value: Variant in query.get("handles", []):
+		var target_handle: GameObjectHandle = value as GameObjectHandle
 		if target_handle == null or not target_handle.is_resolved():
 			continue
-
 		var target_context: GameObjectContext = target_handle.get_context()
 		if target_context == null:
 			continue
-
 		var receiver: GameDamageReceiver = target_context.get_capability(
 			GameCapabilityIds.DAMAGE_RECEIVER
 		) as GameDamageReceiver
 		if receiver == null:
 			continue
-
-		var damage_request := GameDamageRequest.new(
+		var request := GameDamageRequest.new(
 			source_handle,
 			instigator_handle,
 			target_handle,
-			damage,
-			damage_tags,
+			explosion_damage,
+			[&"damage.explosion"],
 			execution_context
 		)
-
-		if receiver.apply_damage(damage_request).is_success():
+		if receiver.apply_damage(request).is_success():
 			affected_count += 1
-
 	return affected_count
-```
 
-Подключите death transition бочки к `explode()` через публичное событие/bridge вашего текущего `GameDeathPolicy`. Guard `_exploded` устанавливается **до** radial damage, поэтому chain reaction не сможет повторно взорвать ту же бочку.
+func _on_died(execution_context: GameExecutionContext) -> void:
+	explode(execution_context)
+```
 
 ---
 
-# 9. `game_mine_simple.gd`
-
-Путь:
-
-```text
-res://content/gameplay/simple_scene/mine/game_mine_simple.gd
-```
+# 10. `game_mine_simple.gd`
 
 ```gdscript
 extends StaticBody3D
 class_name GameMineSimple
 
-enum State {
-	PLACED,
-	ARMED,
-	EXPLODED,
-}
+enum State { PLACED, ARMED, EXPLODED }
 
 signal mine_armed()
 signal mine_exploded(affected_count: int)
 
 # ======== EXPORT =========
 @export var kernel: GameObjectKernel = null
-@export var targeting_service: GameTargetingService = null
+@export var death_policy: GameDeathPolicy = null
 @export var trigger_area: Area3D = null
 @export var trigger_collision: CollisionShape3D = null
 @export_range(0.0, 5.0, 0.01) var arming_delay: float = 0.35
 @export_range(0.1, 20.0, 0.1) var explosion_radius: float = 3.0
 @export_range(0.0, 10000.0, 0.1) var explosion_damage: float = 50.0
 
-# ======== PUBLIC VAR ======
+# ======== RUNTIME INJECTION =========
 var owner_handle: GameObjectHandle = null
 var instigator_handle: GameObjectHandle = null
+var targeting_service: GameTargetingService = null
+var spawn_service: GameSpawnService = null
+var burning_effect: GameEffectDefinition = null
 
 # ======== PRIVATE VAR ======
 var _state: State = State.PLACED
@@ -1243,56 +868,33 @@ var _state: State = State.PLACED
 func _ready() -> void:
 	if trigger_collision != null:
 		trigger_collision.set_deferred("disabled", true)
-
-	if trigger_area != null:
-		if not trigger_area.body_entered.is_connected(_on_trigger_body_entered):
-			trigger_area.body_entered.connect(_on_trigger_body_entered)
-
-# ====== HELPERS ========
-func _on_trigger_body_entered(body: Node3D) -> void:
-	if _state != State.ARMED or body == null:
-		return
-
-	var body_kernel: GameObjectKernel = body.get("kernel") as GameObjectKernel
-	if body_kernel == null or body_kernel.get_object_context() == null:
-		return
-
-	var body_handle: GameObjectHandle = (
-		body_kernel.get_object_context().get_object_handle()
-	)
-	if body_handle == null or not body_handle.is_resolved():
-		return
-
-	if owner_handle != null:
-		if body_handle.get_stable_id() == owner_handle.get_stable_id():
-			return
-
-	explode(body_handle)
+	if trigger_area != null and not trigger_area.body_entered.is_connected(_on_body_entered):
+		trigger_area.body_entered.connect(_on_body_entered)
+	if death_policy != null and not death_policy.died.is_connected(_on_died):
+		death_policy.died.connect(_on_died)
 
 # ====== PUBLIC ========
 func arm_after_delay() -> void:
 	if _state != State.PLACED:
 		return
-
 	if arming_delay > 0.0:
 		await get_tree().create_timer(arming_delay).timeout
-
 	if not is_inside_tree() or _state != State.PLACED:
 		return
-
 	_state = State.ARMED
 	if trigger_collision != null:
 		trigger_collision.set_deferred("disabled", false)
 	mine_armed.emit()
 
-func explode(trigger_instigator: GameObjectHandle = null) -> void:
+func explode(
+	trigger_instigator: GameObjectHandle = null,
+	execution_context: GameExecutionContext = null
+) -> void:
 	if _state == State.EXPLODED:
 		return
-
 	_state = State.EXPLODED
 	if trigger_collision != null:
 		trigger_collision.set_deferred("disabled", true)
-
 	if kernel == null or kernel.get_object_context() == null:
 		mine_exploded.emit(0)
 		return
@@ -1300,361 +902,223 @@ func explode(trigger_instigator: GameObjectHandle = null) -> void:
 	var context: GameObjectContext = kernel.get_object_context()
 	var mine_handle: GameObjectHandle = context.get_object_handle()
 	var effective_instigator: GameObjectHandle = trigger_instigator
-
 	if effective_instigator == null:
 		effective_instigator = instigator_handle
 	if effective_instigator == null:
 		effective_instigator = mine_handle
-
-	var execution_context: GameExecutionContext = (
-		context.create_root_execution_context(
+	var causal_context: GameExecutionContext = execution_context
+	if causal_context == null:
+		causal_context = context.create_root_execution_context(
 			&"simple.mine.explosion",
 			"Mine explosion"
 		)
-	)
 
-	var affected_count: int = apply_radial_damage(
+	var affected_count: int = _apply_explosion(
 		mine_handle,
 		effective_instigator,
-		global_position,
-		explosion_radius,
-		explosion_damage,
-		[&"damage.explosion"],
-		execution_context
+		causal_context
 	)
-
 	mine_exploded.emit(affected_count)
-	set_deferred("collision_layer", 0)
-	set_deferred("collision_mask", 0)
-	call_deferred("queue_free")
 
-func apply_radial_damage(
-	source_handle: GameObjectHandle,
-	instigator: GameObjectHandle,
-	center: Vector3,
-	radius: float,
-	damage: float,
-	damage_tags: Array[StringName],
+	if spawn_service != null:
+		spawn_service.despawn(mine_handle, &"mine_exploded", true)
+	else:
+		queue_free()
+
+# ====== HELPERS ========
+func _on_body_entered(body: Node3D) -> void:
+	if _state != State.ARMED or body == null:
+		return
+	var body_kernel: GameObjectKernel = body.get("kernel") as GameObjectKernel
+	if body_kernel == null or body_kernel.get_object_context() == null:
+		return
+	var body_handle: GameObjectHandle = body_kernel.get_object_context().get_object_handle()
+	if body_handle == null or not body_handle.is_resolved():
+		return
+	if owner_handle != null and body_handle.get_stable_id() == owner_handle.get_stable_id():
+		return
+	explode(body_handle)
+
+func _on_died(execution_context: GameExecutionContext) -> void:
+	explode(instigator_handle, execution_context)
+
+func _apply_explosion(
+	mine_handle: GameObjectHandle,
+	effective_instigator: GameObjectHandle,
 	execution_context: GameExecutionContext
 ) -> int:
-	if targeting_service == null or source_handle == null:
+	if targeting_service == null:
 		return 0
-
-	var excluded_ids: Array[StringName] = [
-		source_handle.get_stable_id()
-	]
-
+	var excluded_ids: Array[StringName] = [mine_handle.get_stable_id()]
 	if owner_handle != null:
-		var owner_id: StringName = owner_handle.get_stable_id()
-		if not excluded_ids.has(owner_id):
-			excluded_ids.append(owner_id)
-
+		excluded_ids.append(owner_handle.get_stable_id())
 	var query: Dictionary = targeting_service.query_sphere(
-		center,
-		radius,
+		global_position,
+		explosion_radius,
 		GameCapabilityIds.DAMAGE_RECEIVER,
 		[],
 		excluded_ids
 	)
 	var affected_count: int = 0
 
-	for handle_value: Variant in query.get("handles", []):
-		var target_handle: GameObjectHandle = handle_value as GameObjectHandle
+	for value: Variant in query.get("handles", []):
+		var target_handle: GameObjectHandle = value as GameObjectHandle
 		if target_handle == null or not target_handle.is_resolved():
 			continue
-
 		var target_context: GameObjectContext = target_handle.get_context()
 		if target_context == null:
 			continue
-
 		var receiver: GameDamageReceiver = target_context.get_capability(
 			GameCapabilityIds.DAMAGE_RECEIVER
 		) as GameDamageReceiver
 		if receiver == null:
 			continue
-
 		var damage_request := GameDamageRequest.new(
-			source_handle,
-			instigator,
+			mine_handle,
+			effective_instigator,
 			target_handle,
-			damage,
-			damage_tags,
+			explosion_damage,
+			[&"damage.explosion"],
 			execution_context
 		)
+		if not receiver.apply_damage(damage_request).is_success():
+			continue
+		affected_count += 1
 
-		if receiver.apply_damage(damage_request).is_success():
-			affected_count += 1
+		if burning_effect != null:
+			var target_effects: GameEffects = target_context.get_capability(
+				GameCapabilityIds.EFFECTS_RECEIVER
+			) as GameEffects
+			if target_effects != null:
+				target_effects.apply_effect(
+					burning_effect,
+					mine_handle,
+					effective_instigator,
+					execution_context
+				)
 
 	return affected_count
 ```
 
-### Почему `body` не игнорируется
-
-`body_entered(body)` используется, чтобы получить реального instigator trigger-а. Это исправляет архитектурную ошибку вида:
-
-```gdscript
-func _on_body_entered(_body: Node3D) -> void:
-	trigger()
-```
-
-При таком варианте мина теряет информацию о том, кто её активировал.
-
-### Burning
-
-После успешного explosion hit добавьте вторую, отдельную операцию:
-
-```text
-explosion hit
-├── GameDamageRequest(damage.explosion)
-└── GameEffects application(simple.effect.burning)
-```
-
-Не вставляйте сюда выдуманный вызов `GameEffects`. Сначала используйте фактический application API вашей текущей версии GCA, затем сохраните тот же causal `GameExecutionContext`.
-
-### Удаление мины
-
-Перед фактическим удалением runtime-мины world-level owner должен снять её handle с `GameObjectResolver` публичным unregister API текущей версии. Сам объект не должен искать resolver через `get_parent()`.
+`burning_effect.meter_operations` в текущем API модифицирует meter напрямую на каждом period. Это не `GameDamageRequest`.
 
 ---
 
-# 10. Inspector/resource wiring abilities
+# 11. Interaction wiring
 
-В GCA Data Studio создайте definitions:
-
-```text
-simple.ability.player.attack
-simple.ability.player.dodge
-simple.ability.player.place_mine
-simple.ability.player.interact
-simple.ability.monster.attack
-simple.ability.door.open
-simple.ability.door.close
-```
-
-Назначьте operations:
+Player `interact` button должен быть обычным `GameAbilityInputBinding`:
 
 ```text
-Player Attack
-└── GameAttackOperationSimple
-    attack_radius = 2.0
-    attack_damage = 25
-    required_tags = [faction.monster]
-
-Player Dodge
-└── GameDodgeOperationSimple
-
-Player Place Mine
-└── GamePlaceMineOperationSimple
-
-Player Interact
-└── GameInteractionAbilityOperation
-
-Monster Attack
-└── GameAttackOperationSimple
-    attack_radius = 1.8
-    attack_damage = 15
-    required_tags = [faction.player]
-
-Door Open
-├── blocked_owner_tags = [state.open]
-└── GameDoorSetOpenOperationSimple
-    open = true
-
-Door Close
-├── required_owner_tags = [state.open]
-└── GameDoorSetOpenOperationSimple
-    open = false
+interact → slot.interaction
 ```
 
-Cooldown задавайте в `GameAbilityDefinition`, а не собственным timer в Player/Monster glue:
+`slot.interaction` ссылается на grant `simple.ability.player.interact`, definition которого содержит `GameInteractionAbilityOperation`.
+
+Door target:
 
 ```text
-player attack  = 0.45 s
-player dodge   = 0.8 s
-place mine     = 2.0 s
-monster attack = 1.0 s
+GameAbilities.initial_abilities
+├── simple.ability.door.open
+└── simple.ability.door.close
+
+GameInteractionTarget.reactions
+├── intent=open  → simple.ability.door.open
+└── intent=close → simple.ability.door.close
 ```
 
-Для двери добавьте `state.open` в назначенный `GameTagCatalog`.
+Перед нажатием `E` sensing layer должен установить focus через `GameInteractionSource.set_focus()`; core не выбирает spatial target автоматически.
 
 ---
 
-# 11. Что подключить вручную в сценах
+# 12. Что проверить в Inspector
+
+## Все static world objects
+
+```text
+GameObjectKernel.auto_initialize = false
+```
 
 ## Player
 
 ```text
-GamePlayerSimple.kernel                -> GameObjectKernel
-GamePlayerSimple.control_arbiter       -> GameControlArbiter
-GamePlayerSimple.control_endpoint      -> GameControlEndpoint
-GamePlayerSimple.player_input_source   -> GamePlayerInputSource
-GamePlayerSimple.abilities             -> GameAbilities
-GamePlayerSimple.effects               -> GameEffects
-GamePlayerSimple.mine_placement_marker -> MinePlacementMarker
-```
-
-В `GameAbilities.initial_abilities` добавьте `simple.ability.player.interact`.
-
-В `GameAbilityLoadout` добавьте логический interaction slot, а в `GamePlayerInputSource.ability_input_bindings`:
-
-```text
-input_action = interact
-slot_id      = slot.interaction
-```
-
-То есть `GamePlayerInputSource` не содержит отдельного знания о двери и не вызывает interaction напрямую: `interact` — такая же кнопка активации ability slot, как attack/dodge.
-
-InputMap для прототипа:
-
-```text
-attack     = Mouse1
-dodge      = Space
-place_mine = Q
-interact   = E
+GameAbilities.initial_abilities = attack, dodge, place_mine, interact
+GameAbilityLoadout.initial_slots = primary, mobility, utility_1, interaction
+GamePlayerInputSource.ability_input_bindings = InputAction → slot
 ```
 
 ## Monster
 
 ```text
-kernel             -> GameObjectKernel
-control_arbiter    -> GameControlArbiter
-control_endpoint   -> GameControlEndpoint
-ai_control_source  -> GameMockAIControlSource
-abilities          -> GameAbilities
-effects            -> GameEffects
-navigation_agent   -> NavigationAgent3D
+GameAbilities.initial_abilities = simple.ability.monster.attack
+GameMockAIControlSource attached after world bind
 ```
-
-NPC/AI, которому тоже нужно взаимодействовать с миром, может иметь тот же `GameInteractionSource` + universal interact ability. Объект также может одновременно иметь `GameInteractionTarget`: source и target не конфликтуют capability registration.
 
 ## Door
 
-Рекомендуемое дерево:
-
 ```text
-Door (AnimatableBody3D, GameDoorSimple)
-├── Hinge
-│   ├── MeshInstance3D
-│   └── CollisionShape3D
-└── GameObjectKernel
-    ├── GameObjectIdentity
-    ├── GameTagContainer
-    ├── GameAbilities
-    └── GameInteractionTarget
-```
-
-Inspector:
-
-```text
-GameDoorSimple.hinge -> Hinge
-GameDoorSimple.tags  -> GameObjectKernel/GameTagContainer
-```
-
-`GameAbilities.initial_abilities`:
-
-```text
-simple.ability.door.open
-simple.ability.door.close
-```
-
-`GameInteractionTarget.reactions`:
-
-```text
-open  -> simple.ability.door.open
-close -> simple.ability.door.close
-```
-
-Никакой `interaction_target` export-ссылки в `GameDoorSimple` больше нет: дверь не вручную переписывает offers.
-
-## Barrel
-
-```text
-kernel              -> GameObjectKernel
-targeting_service   -> назначает GameSimpleScene
+GameTagContainer knows state.open
+GameAbilities.initial_abilities = door.open, door.close
+GameInteractionTarget.reactions = open, close
 ```
 
 ## Mine
 
+Mine scene должна иметь direct-child `GameObjectKernel`, потому что `GameSpawnService.spawn()` ищет kernel среди direct children root.
+
+## Burning
+
 ```text
-kernel              -> GameObjectKernel
-trigger_area        -> TriggerArea
-trigger_collision   -> TriggerArea/CollisionShape3D
-targeting_service   -> назначает GameSimpleScene
-owner_handle        -> назначает GameSimpleScene при spawn
-instigator_handle   -> назначает GameSimpleScene при spawn
+duration_policy = DURATION
+duration = 4
+period = 1
+granted_tags = [status.burning]
+meter_operations = [{meter_id: simple.meter.health, delta: -5}]
 ```
 
 ---
 
-# 12. Минимальный порядок проверки
+# 13. API paths, которые этот companion намеренно не использует
 
-Проверяйте не всё сразу, а по слоям:
+Не используйте в этом примере:
 
 ```text
-1. World запускается, floor имеет collision.
-2. Player двигается через control pipeline.
-3. Player handle зарегистрирован resolver-ом.
-4. Test GameDamageRequest уменьшает Health через DamageReceiver.
-5. Player attack activation проходит через GameAbilities.
-6. Attack operation находит Monster через DAMAGE_RECEIVER.
-7. Monster patrol/chase работает через AI control source.
-8. Monster attack damage идёт тем же pipeline.
-9. Interact slot активирует universal interaction ability.
-10. Closed Door query показывает только intent.open.
-11. Default interact на Closed Door активирует door.open.
-12. После state.open query показывает только intent.close.
-13. Explicit intent.open на уже открытой двери не вызывает door.close.
-14. Barrel получает damage и explode() вызывается один раз.
-15. PlaceMine ability создаёт runtime mine.
-16. Mine не armed первые 0.35 s.
-17. body_entered передаёт реального trigger instigator.
-18. Mine explosion находит зарегистрированные DAMAGE_RECEIVER цели.
-19. После этого отдельно подключается Burning через фактический GameEffects API.
-20. Затем подключаются death bridges, presentation и unregister lifecycle.
+Player._unhandled_input() → concrete ability IDs
+GameAbilities.activate() напрямую из player input glue
+activation_payload.actor_node
+activation_payload.targeting_service
+activation_payload.dodge_callable
+activation_payload.spawn_mine_callable
+manual object_resolver.register_handle() после GameWorldContext.bind_kernel()
+неопределённый unregister API
+GameInteractionOffer.command_id
+GameInteractionOffer.ability_id
+Door-specific command dispatcher
 ```
 
-Если шаг не работает, не переходите к следующему. Так проще определить, какой именно контракт нарушен.
+Это либо обходит текущий control/loadout/world contract, либо уже удалено из публичного API.
 
 ---
 
-# 13. Где следующий рефакторинг
+# 14. Локальный scheduler
 
-В `GameBarrelSimple` и `GameMineSimple` специально оставлен одинаковый учебный `apply_radial_damage()`. Это делает первый прототип прозрачным: вы видите весь путь от world query до `GameDamageRequest`.
-
-Когда этот цикл станет понятен и начнёт повторяться в нескольких mechanics, вынесите его в project-level combat service.
-
-Подробный пример такого следующего шага:
-
-[`example_combat_service.md`](./example_combat_service.md)
-
-Ментальная модель:
+Локальные вызовы:
 
 ```text
-Mine / Barrel
-→ решают КОГДА взорваться и с какими параметрами
-
-GameCombatService
-→ знает КАК выполнить стандартный targeting + damage-request pipeline
-
-GameDamageReceiver
-→ знает КАК цель принимает входящий damage request
+abilities.advance_time(delta)
+effects.advance_time(delta, execution_context)
+kernel.process_execution_queue()
 ```
 
-Не переносите в combat service arming мины, AI, дверь, VFX или death state. Иначе он превратится в God object.
+оставлены намеренно. Текущий GCA не требует единого глобального scheduler; owner/subscene может контролировать advancement самостоятельно.
 
 ---
 
-# 14. Что этот companion намеренно не делает
+# 15. Ограничения tutorial
 
-Он не создаёт:
+- Spatial interaction sensing/focus остаётся project-level adapter.
+- Simple dodge — одношаговый fallback, не production timed dash.
+- Текущий `GameSpawnService.spawn()` не inject-ит world ports в spawned kernel; Mine получает нужные post-spawn services явно.
+- Current periodic Effects меняют meters через `meter_operations`; combat-aware DoT через `GameDamageReceiver` требует отдельного gameplay adapter.
+- Presentation/VFX/SFX остаются отдельным слоем.
 
-- `project.godot`;
-- бинарные файлы;
-- `.godot/imported`;
-- готовые `.tscn`;
-- готовые `.tres`;
-- target-type dispatchers;
-- `has_method("activate")` interaction wiring;
-- фиктивные GCA API, которых нет в проверенных источниках.
-
-Сцены и data resources собираются вручную по основному [`example_simple_scene.md`](./example_simple_scene.md), а этот файл служит копируемым набором game-specific glue-шаблонов.
+Tutorial не создаёт `project.godot`, `.tscn`, `.tres`, `.uid` или бинарные assets: сцены и Resources собираются вручную по текущим public contracts.
