@@ -2,14 +2,13 @@
 extends Resource
 ## Player-input mapping from one Godot input action to one logical ability slot.
 ##
-## The binding knows nothing about concrete ability definitions. Slot resolution happens
-## later through the controlled object's [GameAbilityLoadout].
+## The binding knows nothing about concrete ability definitions or activation payloads.
+## Slot resolution happens later through the controlled object's [GameAbilityLoadout].
 class_name GameAbilityInputBinding
 
 # ======== EXPORT =========
 @export var input_action: StringName = &""
 @export var slot_id: StringName = &""
-@export var activation_payload: Dictionary = {}
 
 # ====== PUBLIC ========
 ## Returns whether both the input action and logical slot are configured.
