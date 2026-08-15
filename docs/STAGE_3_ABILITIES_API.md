@@ -18,6 +18,8 @@ The component provides:
 - `abilities.grant`;
 - `abilities.cancel`.
 
+For objects that need logical hotbar/action slots, also add `GameAbilityLoadout`. It provides `abilities.loadout` and depends on `abilities.query`.
+
 ## Definition, grant and execution
 
 `GameAbilityDefinition` is immutable shared configuration. `GameAbilityGrant` stores owner/source-specific state. `GameAbilityExecution` stores one activation lifecycle.
@@ -47,6 +49,65 @@ abilities.revoke_grant(grant.get_handle_id(), &"equipment_removed")
 
 Other grants of the same ability remain available.
 
+## Ability loadout and logical slots
+
+`GameAbilityLoadout` is optional. It does not own abilities or executions. It only maps logical slots such as `slot.primary`, `slot.secondary`, `slot.mobility` or `slot.quick_1` to concrete runtime grant handles.
+
+This separation is intentional:
+
+```text
+Grant          = owner has an ability
+Loadout slot   = one grant is assigned to a logical action slot
+Input binding  = a player input action activates that logical slot
+```
+
+Initial slots use `GameAbilitySlotDefinition`. The referenced ability must already exist in `GameAbilities.initial_abilities`. During initialization the loadout resolves the selected grant and stores the concrete handle.
+
+Runtime systems should bind the exact grant they created:
+
+```gdscript
+var grant_result := abilities.grant_ability(
+	sword_attack,
+	item_handle,
+	&"item.sword.instance_17",
+	1,
+	-1,
+	100
+)
+var grant := grant_result.get_payload() as GameAbilityGrant
+
+var loadout := kernel.get_object_context().get_capability(
+	GameCapabilityIds.ABILITIES_LOADOUT
+) as GameAbilityLoadout
+
+var binding_result := loadout.bind_grant(
+	&"slot.primary",
+	grant.get_handle_id(),
+	&"item.sword.instance_17",
+	100
+)
+var binding := binding_result.get_payload() as GameAbilitySlotBinding
+```
+
+Several sources may bind the same slot. Higher `priority` wins; equal priority uses the newer binding. Lower-priority bindings remain intact.
+
+If the overriding grant is revoked, `resolve_slot()` ignores that stale grant and automatically exposes the next valid binding. This allows equipment/effects to override a base action without manually restoring the old value.
+
+Remove only source-owned state:
+
+```gdscript
+loadout.unbind(binding.get_handle_id())
+abilities.revoke_grant(grant.get_handle_id(), &"equipment_removed")
+```
+
+For a source that owns several slot bindings:
+
+```gdscript
+loadout.unbind_source(&"item.sword.instance_17")
+```
+
+Ability definitions never contain input actions or keyboard/gamepad buttons.
+
 ## Query and activation
 
 Create one execution context and request. Query first when UI or AI needs a reason without mutations:
@@ -69,6 +130,13 @@ else:
 ```
 
 `query_activation()` does not spend meters, consume charges, start cooldowns, create executions or publish `ability_started`.
+
+Two additional read-only helpers are available for loadout/UI integration:
+
+```gdscript
+abilities.has_grant(grant_handle_id)
+abilities.resolve_grant_handle(&"ability.attack.light")
+```
 
 ## Commit cycle
 
@@ -109,6 +177,7 @@ Do not add `_process()` to individual grants, cooldowns or executions.
 - Derive `GameAbilityCost` for prepare/commit/rollback/refund behavior.
 - Derive `GameAbilityOperation` for small execution actions.
 - Use `GameAbilityApplyEffectOperation` to apply an existing `GameEffectDefinition` to normalized target handles.
+- Use `GameAbilityLoadout` only when a controlled object needs assignable logical slots.
 
 Custom operations must use capabilities/ports and must not search SceneTree, read input, mutate shared definitions or call sibling features directly.
 
@@ -117,4 +186,5 @@ Custom operations must use capabilities/ports and must not search SceneTree, rea
 - Operations are synchronous in this increment; the base contract reserves async/cancel hooks for animation, movement and external wait tokens.
 - World spatial targeting remains a Stage 5 port. This increment accepts normalized explicit target handles/point/direction in the activation request.
 - Active execution serialization is not implemented; definitions expose the Stage 3 cancel-on-load boundary.
+- Loadout bindings are runtime state in this increment; persistence/reconciliation remains a Stage 5 responsibility.
 - No `.tres`, scenes, `project.godot` or binary files are included.
