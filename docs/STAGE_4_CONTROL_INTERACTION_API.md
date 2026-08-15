@@ -89,8 +89,9 @@ ability_2         → slot.quick_2
 A binding contains only:
 
 - Godot `input_action`;
-- logical `slot_id`;
-- optional activation payload.
+- logical `slot_id`.
+
+It deliberately does **not** contain ability-specific activation payloads. Player input is only a decision source. Ability-specific runtime data should come from normalized targeting state, grant/source data, capabilities, or injected world/gameplay ports rather than character-specific callbacks attached to an input button.
 
 Conceptually the runtime path is:
 
@@ -198,4 +199,5 @@ func _physics_process(delta: float) -> void:
 - Hold and paired interaction data contracts are reserved, but full asynchronous execution waits are not implemented in Stage 3.
 - Camera and animation ports are represented by presentation cues; concrete rigs/adapters remain game content.
 - Loadout persistence and Inventory System reconciliation remain Stage 5 adapter responsibilities.
+- The old `example_simple_scene_complete_scripts.md` remains a game-specific prototype companion and still contains callback/payload fallbacks for its demo operations. Those callbacks are not the recommended production input-to-ability path after this API change.
 - No scenes, `.tres`, `.uid`, `project.godot` or binary resources are included.
