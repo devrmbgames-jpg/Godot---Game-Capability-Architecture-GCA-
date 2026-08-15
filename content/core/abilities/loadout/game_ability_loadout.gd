@@ -110,6 +110,10 @@ func _sort_slot_bindings(slot_id: StringName) -> void:
 	)
 	_binding_ids_by_slot[slot_id] = ids
 
+func _notify_slot_bindings_changed(slot_id: StringName) -> void:
+	if get_lifecycle_state() == LifecycleState.ACTIVATED:
+		slot_bindings_changed.emit(slot_id)
+
 func _erase_binding(binding: GameAbilitySlotBinding) -> void:
 	if binding == null:
 		return
@@ -156,7 +160,7 @@ func bind_grant(
 	ids.append(_binding_counter)
 	_binding_ids_by_slot[slot_id] = ids
 	_sort_slot_bindings(slot_id)
-	slot_bindings_changed.emit(slot_id)
+	_notify_slot_bindings_changed(slot_id)
 	return GameCommandResult.success_changed(&"ability_slot_bound", binding)
 
 ## Resolves the currently selected grant for an ability ID and binds that exact grant.
@@ -186,7 +190,7 @@ func unbind(binding_handle_id: int) -> GameCommandResult:
 		)
 	var slot_id: StringName = binding.get_slot_id()
 	_erase_binding(binding)
-	slot_bindings_changed.emit(slot_id)
+	_notify_slot_bindings_changed(slot_id)
 	return GameCommandResult.success_changed(&"ability_slot_unbound")
 
 ## Removes every binding owned by one source key and leaves unrelated bindings intact.
@@ -210,7 +214,7 @@ func unbind_source(source_id: StringName) -> GameCommandResult:
 		_erase_binding(binding)
 
 	for slot_id: StringName in changed_slots.keys():
-		slot_bindings_changed.emit(slot_id)
+		_notify_slot_bindings_changed(slot_id)
 	return GameCommandResult.success_changed(&"ability_slot_source_unbound", handle_ids)
 
 ## Returns the highest-priority binding whose grant still exists and is enabled.
