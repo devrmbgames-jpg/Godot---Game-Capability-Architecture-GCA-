@@ -116,11 +116,12 @@ func get_record(path: String) -> Dictionary:
 func get_record_count() -> int:
 	return _records.size()
 
-## Returns indexed resource classes sorted by their editor category title.
+## Returns explicit creation categories even when no matching resources exist yet.
+##
+## Generic indexable Game* resources remain visible through the All view and Inspector,
+## but are not exposed as Create categories until a dedicated schema exists.
 func get_resource_classes() -> Array[StringName]:
-	var result: Array[StringName] = []
-	for resource_class: StringName in _records_by_class.keys():
-		result.append(resource_class)
+	var result: Array[StringName] = GameDataSchemaRegistry.get_supported_classes()
 	result.sort_custom(func(a: StringName, b: StringName) -> bool:
 		var title_a: String = GameDataSchemaRegistry.get_category_title(a)
 		var title_b: String = GameDataSchemaRegistry.get_category_title(b)
