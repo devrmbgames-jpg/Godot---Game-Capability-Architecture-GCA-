@@ -1,0 +1,53 @@
+[gd_scene format=3 uid="uid://dyebndhr5qshr"]
+
+[ext_resource type="Script" uid="uid://cm45y3qnhgmmw" path="res://content/gameplay/world/world.gd" id="1_idfe3"]
+[ext_resource type="Script" uid="uid://c8vlctjvwyag3" path="res://content/core/world/objects/game_object_resolver.gd" id="2_a7asb"]
+[ext_resource type="Script" uid="uid://dprfq7hrtqpar" path="res://content/core/world/spawn/game_spawn_service.gd" id="3_efbvw"]
+[ext_resource type="Script" uid="uid://c1gpx17f3qng1" path="res://content/core/world/targeting/game_targeting_service.gd" id="4_hjpym"]
+[ext_resource type="Script" uid="uid://d3bcr2qsxaew1" path="res://content/core/world/time/game_time_service.gd" id="5_qsla2"]
+[ext_resource type="Script" uid="uid://t7ym5wyr6ja5" path="res://content/core/persistence/game_persistence_coordinator.gd" id="6_h0f1j"]
+[ext_resource type="Script" uid="uid://bmxshhu57vpd6" path="res://content/core/world/context/game_world_context.gd" id="7_w7gxc"]
+
+[node name="World" type="Node3D" unique_id=635038900]
+script = ExtResource("1_idfe3")
+
+[node name="WorldServices" type="Node" parent="." unique_id=589026209]
+
+[node name="GameObjectResolver" type="Node" parent="WorldServices" unique_id=1921358929]
+script = ExtResource("2_a7asb")
+metadata/_custom_type_script = "uid://c8vlctjvwyag3"
+
+[node name="GameSpawnService" type="Node" parent="WorldServices" unique_id=1362917057 node_paths=PackedStringArray("default_parent", "object_resolver")]
+script = ExtResource("3_efbvw")
+default_parent = NodePath("../../Spawn")
+object_resolver = NodePath("../GameObjectResolver")
+metadata/_custom_type_script = "uid://dprfq7hrtqpar"
+
+[node name="GameTargetingService" type="Node" parent="WorldServices" unique_id=1854274796 node_paths=PackedStringArray("object_resolver")]
+script = ExtResource("4_hjpym")
+object_resolver = NodePath("../GameObjectResolver")
+metadata/_custom_type_script = "uid://c1gpx17f3qng1"
+
+[node name="GameTimeService" type="Node" parent="WorldServices" unique_id=2036811064]
+script = ExtResource("5_qsla2")
+metadata/_custom_type_script = "uid://d3bcr2qsxaew1"
+
+[node name="GamePersistenceCoordinator" type="Node" parent="WorldServices" unique_id=374529393 node_paths=PackedStringArray("object_resolver")]
+script = ExtResource("6_h0f1j")
+object_resolver = NodePath("../GameObjectResolver")
+metadata/_custom_type_script = "uid://t7ym5wyr6ja5"
+
+[node name="GameWorldContext" type="Node" parent="WorldServices" unique_id=249525510 node_paths=PackedStringArray("object_resolver", "spawn_service", "targeting_service", "time_service", "persistence_coordinator")]
+script = ExtResource("7_w7gxc")
+object_resolver = NodePath("../GameObjectResolver")
+spawn_service = NodePath("../GameSpawnService")
+targeting_service = NodePath("../GameTargetingService")
+time_service = NodePath("../GameTimeService")
+persistence_coordinator = NodePath("../GamePersistenceCoordinator")
+metadata/_custom_type_script = "uid://bmxshhu57vpd6"
+
+[node name="GeometryLevel" type="Node3D" parent="." unique_id=1837315306]
+
+[node name="Spawn" type="Node3D" parent="." unique_id=2041426157]
+
+[node name="Props" type="Node3D" parent="." unique_id=1226355511]

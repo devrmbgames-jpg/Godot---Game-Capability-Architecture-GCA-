@@ -1,0 +1,357 @@
+[gd_scene format=3 uid="uid://hq335i26pdxt"]
+
+[ext_resource type="Script" uid="uid://drktecnygf1s6" path="res://content/core/object/kernel/game_object_kernel.gd" id="1_cjksi"]
+[ext_resource type="Script" uid="uid://dc07aejmptsxw" path="res://content/core/object/identity/game_object_identity.gd" id="2_0j5mx"]
+[ext_resource type="Script" uid="uid://cj1dn4vkggo6v" path="res://content/core/capabilities/contracts/game_capability_spec.gd" id="3_1fij3"]
+[ext_resource type="Script" uid="uid://bg0cgb3piiol5" path="res://content/core/tags/game_tag_container.gd" id="4_wke4m"]
+[ext_resource type="Script" uid="uid://6p0vbtqtha3i" path="res://content/core/attributes/runtime/game_attributes.gd" id="5_lltx8"]
+[ext_resource type="Script" uid="uid://dx0nb3oqulxll" path="res://content/core/attributes/definitions/game_attribute_definition.gd" id="6_hkobv"]
+[ext_resource type="Resource" uid="uid://btvqo5de0fgme" path="res://content/gameplay/attributes/definitions/attr_def_max_health.tres" id="7_pe7fk"]
+[ext_resource type="Resource" uid="uid://dctstdgfmgogt" path="res://content/gameplay/attributes/definitions/attr_def_movement_speed.tres" id="8_pdkqm"]
+[ext_resource type="Script" uid="uid://lok4jwvnvtow" path="res://content/core/meters/runtime/game_meters.gd" id="9_xc5xi"]
+[ext_resource type="Script" uid="uid://n387b56ndfr" path="res://content/core/meters/definitions/game_meter_definition.gd" id="10_d6pq1"]
+[ext_resource type="Resource" uid="uid://vwq11s351r7q" path="res://content/gameplay/meters/definitions/met_def_health.tres" id="11_6ukwa"]
+[ext_resource type="Script" uid="uid://c0fi3pqv8u640" path="res://content/core/capabilities/contracts/game_capability_dependency.gd" id="12_7vujr"]
+[ext_resource type="Script" uid="uid://beveiy3tlkusa" path="res://content/core/effects/runtime/game_effects.gd" id="13_ai73i"]
+[ext_resource type="Script" uid="uid://o4kr8emi1m8a" path="res://content/core/abilities/game_abilities.gd" id="14_w6f2a"]
+[ext_resource type="Script" uid="uid://d0drw08ih1tc" path="res://content/core/abilities/loadout/game_ability_loadout.gd" id="15_mhbbh"]
+[ext_resource type="Script" uid="uid://cilxfly7tens6" path="res://content/core/control/arbiter/game_control_arbiter.gd" id="16_2twng"]
+[ext_resource type="Script" uid="uid://bs8eqyw1vxgxi" path="res://content/core/control/endpoint/game_control_endpoint.gd" id="17_wq4af"]
+[ext_resource type="Script" uid="uid://le55y1fr7gdu" path="res://content/core/movement/motors/game_character_motor.gd" id="18_ympcd"]
+[ext_resource type="Script" uid="uid://dxcol2alnl1gm" path="res://content/core/interaction/source/game_interaction_source.gd" id="19_2mumb"]
+[ext_resource type="Script" uid="uid://0hmmavr7frwd" path="res://content/core/damage/game_damage_receiver.gd" id="20_pmph7"]
+[ext_resource type="Script" uid="uid://d1sbmc55qwxbi" path="res://content/core/death/game_death_policy.gd" id="21_xkbve"]
+[ext_resource type="Script" uid="uid://c20a1pixu0px7" path="res://content/core/presentation/ports/game_presentation_cue_receiver.gd" id="22_e7ryo"]
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_bghjr"]
+radial_segments = 8
+rings = 4
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_bghjr"]
+albedo_color = Color(0.76153034, 0.6077007, 0.9843072, 1)
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_bghjr"]
+
+[sub_resource type="Resource" id="Resource_nae10"]
+script = ExtResource("3_1fij3")
+capability_id = &"object.identity"
+
+[sub_resource type="Resource" id="Resource_xtp1h"]
+script = ExtResource("3_1fij3")
+capability_id = &"tags.query"
+
+[sub_resource type="Resource" id="Resource_ai73i"]
+script = ExtResource("3_1fij3")
+capability_id = &"tags.modify"
+
+[sub_resource type="Resource" id="Resource_w6f2a"]
+script = ExtResource("3_1fij3")
+capability_id = &"attributes.provider"
+
+[sub_resource type="Resource" id="Resource_mhbbh"]
+script = ExtResource("3_1fij3")
+capability_id = &"attributes.query"
+
+[sub_resource type="Resource" id="Resource_2twng"]
+script = ExtResource("3_1fij3")
+capability_id = &"attributes.modify"
+
+[sub_resource type="Resource" id="Resource_wq4af"]
+script = ExtResource("3_1fij3")
+capability_id = &"meters.provider"
+
+[sub_resource type="Resource" id="Resource_ympcd"]
+script = ExtResource("3_1fij3")
+capability_id = &"meters.query"
+
+[sub_resource type="Resource" id="Resource_2mumb"]
+script = ExtResource("3_1fij3")
+capability_id = &"meters.modify"
+
+[sub_resource type="Resource" id="Resource_pmph7"]
+script = ExtResource("12_7vujr")
+capability_id = &"attributes.query"
+required = false
+
+[sub_resource type="Resource" id="Resource_1ss7u"]
+script = ExtResource("3_1fij3")
+capability_id = &"effects.receiver"
+
+[sub_resource type="Resource" id="Resource_uh5c8"]
+script = ExtResource("3_1fij3")
+capability_id = &"effects.query"
+
+[sub_resource type="Resource" id="Resource_dfbww"]
+script = ExtResource("3_1fij3")
+capability_id = &"effects.dispel"
+
+[sub_resource type="Resource" id="Resource_ao2gd"]
+script = ExtResource("3_1fij3")
+capability_id = &"effects.scheduler_host"
+
+[sub_resource type="Resource" id="Resource_h1me5"]
+script = ExtResource("12_7vujr")
+capability_id = &"attributes.modify"
+required = false
+
+[sub_resource type="Resource" id="Resource_db15n"]
+script = ExtResource("12_7vujr")
+capability_id = &"meters.modify"
+required = false
+
+[sub_resource type="Resource" id="Resource_06bkt"]
+script = ExtResource("12_7vujr")
+capability_id = &"tags.modify"
+required = false
+
+[sub_resource type="Resource" id="Resource_p33le"]
+script = ExtResource("3_1fij3")
+capability_id = &"abilities.owner"
+
+[sub_resource type="Resource" id="Resource_tivkd"]
+script = ExtResource("3_1fij3")
+capability_id = &"abilities.query"
+
+[sub_resource type="Resource" id="Resource_q42t1"]
+script = ExtResource("3_1fij3")
+capability_id = &"abilities.activate"
+
+[sub_resource type="Resource" id="Resource_m3fpv"]
+script = ExtResource("3_1fij3")
+capability_id = &"abilities.grant"
+
+[sub_resource type="Resource" id="Resource_btjmw"]
+script = ExtResource("3_1fij3")
+capability_id = &"abilities.cancel"
+
+[sub_resource type="Resource" id="Resource_a8tum"]
+script = ExtResource("12_7vujr")
+capability_id = &"meters.modify"
+required = false
+
+[sub_resource type="Resource" id="Resource_124d0"]
+script = ExtResource("12_7vujr")
+capability_id = &"effects.receiver"
+required = false
+
+[sub_resource type="Resource" id="Resource_3rvvb"]
+script = ExtResource("12_7vujr")
+capability_id = &"tags.modify"
+required = false
+
+[sub_resource type="Resource" id="Resource_5qjii"]
+script = ExtResource("3_1fij3")
+capability_id = &"abilities.loadout"
+
+[sub_resource type="Resource" id="Resource_efum4"]
+script = ExtResource("12_7vujr")
+capability_id = &"abilities.query"
+
+[sub_resource type="Resource" id="Resource_exepw"]
+script = ExtResource("3_1fij3")
+capability_id = &"control.arbiter"
+
+[sub_resource type="Resource" id="Resource_cs52w"]
+script = ExtResource("3_1fij3")
+capability_id = &"control.endpoint"
+
+[sub_resource type="Resource" id="Resource_bci1f"]
+script = ExtResource("3_1fij3")
+capability_id = &"control.intent_receiver"
+
+[sub_resource type="Resource" id="Resource_sqgs3"]
+script = ExtResource("3_1fij3")
+capability_id = &"control.query"
+
+[sub_resource type="Resource" id="Resource_g3ic3"]
+script = ExtResource("12_7vujr")
+capability_id = &"control.arbiter"
+
+[sub_resource type="Resource" id="Resource_7tqgn"]
+script = ExtResource("12_7vujr")
+capability_id = &"movement.motor"
+required = false
+
+[sub_resource type="Resource" id="Resource_g484a"]
+script = ExtResource("12_7vujr")
+capability_id = &"abilities.activate"
+required = false
+
+[sub_resource type="Resource" id="Resource_u6svk"]
+script = ExtResource("12_7vujr")
+capability_id = &"abilities.loadout"
+required = false
+
+[sub_resource type="Resource" id="Resource_cwdbi"]
+script = ExtResource("12_7vujr")
+capability_id = &"interaction.source"
+required = false
+
+[sub_resource type="Resource" id="Resource_awqfa"]
+script = ExtResource("3_1fij3")
+capability_id = &"movement.motor"
+
+[sub_resource type="Resource" id="Resource_gsoqf"]
+script = ExtResource("3_1fij3")
+capability_id = &"movement.query"
+
+[sub_resource type="Resource" id="Resource_2ugwg"]
+script = ExtResource("12_7vujr")
+capability_id = &"attributes.query"
+required = false
+
+[sub_resource type="Resource" id="Resource_to7pv"]
+script = ExtResource("3_1fij3")
+capability_id = &"interaction.source"
+
+[sub_resource type="Resource" id="Resource_385xc"]
+script = ExtResource("3_1fij3")
+capability_id = &"interaction.query"
+
+[sub_resource type="Resource" id="Resource_kymkb"]
+script = ExtResource("3_1fij3")
+capability_id = &"damage.receiver"
+
+[sub_resource type="Resource" id="Resource_07a75"]
+script = ExtResource("12_7vujr")
+capability_id = &"meters.modify"
+
+[sub_resource type="Resource" id="Resource_mof8d"]
+script = ExtResource("12_7vujr")
+capability_id = &"attributes.query"
+required = false
+
+[sub_resource type="Resource" id="Resource_ag6yi"]
+script = ExtResource("3_1fij3")
+capability_id = &"death.policy"
+
+[sub_resource type="Resource" id="Resource_1m0sx"]
+script = ExtResource("12_7vujr")
+capability_id = &"meters.query"
+
+[sub_resource type="Resource" id="Resource_sfgp7"]
+script = ExtResource("12_7vujr")
+capability_id = &"tags.modify"
+required = false
+
+[sub_resource type="Resource" id="Resource_qimwb"]
+script = ExtResource("3_1fij3")
+capability_id = &"presentation.cue_receiver"
+
+[node name="CharacterBase" type="CharacterBody3D" unique_id=1955737221]
+
+[node name="Visual" type="Node3D" parent="." unique_id=1245736917]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Visual" unique_id=301739317]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+mesh = SubResource("CapsuleMesh_bghjr")
+surface_material_override/0 = SubResource("StandardMaterial3D_bghjr")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1556314237]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+shape = SubResource("CapsuleShape3D_bghjr")
+
+[node name="GameObjectKernel" type="Node" parent="." unique_id=705682530 node_paths=PackedStringArray("object_root_override")]
+script = ExtResource("1_cjksi")
+object_root_override = NodePath("..")
+metadata/_custom_type_script = "uid://drktecnygf1s6"
+
+[node name="GameObjectIdentity" type="Node" parent="GameObjectKernel" unique_id=1078225416]
+script = ExtResource("2_0j5mx")
+definition_id = &"object.entity.character"
+allow_runtime_generated_id = true
+feature_id = &"object.identity"
+provided_capabilities = Array[ExtResource("3_1fij3")]([SubResource("Resource_nae10")])
+metadata/_custom_type_script = "uid://dc07aejmptsxw"
+
+[node name="GameTagContainer" type="Node" parent="GameObjectKernel" unique_id=66286279]
+script = ExtResource("4_wke4m")
+feature_id = &"object.tags"
+provided_capabilities = Array[ExtResource("3_1fij3")]([SubResource("Resource_xtp1h"), SubResource("Resource_ai73i")])
+metadata/_custom_type_script = "uid://bg0cgb3piiol5"
+
+[node name="GameAttributes" type="Node" parent="GameObjectKernel" unique_id=782630399]
+script = ExtResource("5_lltx8")
+definitions = Array[ExtResource("6_hkobv")]([ExtResource("7_pe7fk"), ExtResource("8_pdkqm")])
+feature_id = &"object.attributes"
+provided_capabilities = Array[ExtResource("3_1fij3")]([SubResource("Resource_w6f2a"), SubResource("Resource_mhbbh"), SubResource("Resource_2twng")])
+metadata/_custom_type_script = "uid://6p0vbtqtha3i"
+
+[node name="GameMeters" type="Node" parent="GameObjectKernel" unique_id=643651960]
+script = ExtResource("9_xc5xi")
+definitions = Array[ExtResource("10_d6pq1")]([ExtResource("11_6ukwa")])
+feature_id = &"object.meters"
+provided_capabilities = Array[ExtResource("3_1fij3")]([SubResource("Resource_wq4af"), SubResource("Resource_ympcd"), SubResource("Resource_2mumb")])
+optional_dependencies = Array[ExtResource("12_7vujr")]([SubResource("Resource_pmph7")])
+metadata/_custom_type_script = "uid://lok4jwvnvtow"
+
+[node name="GameEffects" type="Node" parent="GameObjectKernel" unique_id=1899232339]
+script = ExtResource("13_ai73i")
+feature_id = &"object.effects"
+provided_capabilities = Array[ExtResource("3_1fij3")]([SubResource("Resource_1ss7u"), SubResource("Resource_uh5c8"), SubResource("Resource_dfbww"), SubResource("Resource_ao2gd")])
+optional_dependencies = Array[ExtResource("12_7vujr")]([SubResource("Resource_h1me5"), SubResource("Resource_db15n"), SubResource("Resource_06bkt")])
+metadata/_custom_type_script = "uid://beveiy3tlkusa"
+
+[node name="GameAbilities" type="Node" parent="GameObjectKernel" unique_id=1008763848]
+script = ExtResource("14_w6f2a")
+feature_id = &"object.abilities"
+provided_capabilities = Array[ExtResource("3_1fij3")]([SubResource("Resource_p33le"), SubResource("Resource_tivkd"), SubResource("Resource_q42t1"), SubResource("Resource_m3fpv"), SubResource("Resource_btjmw")])
+optional_dependencies = Array[ExtResource("12_7vujr")]([SubResource("Resource_a8tum"), SubResource("Resource_124d0"), SubResource("Resource_3rvvb")])
+metadata/_custom_type_script = "uid://o4kr8emi1m8a"
+
+[node name="GameAbilityLoadout" type="Node" parent="GameObjectKernel" unique_id=1001783847]
+script = ExtResource("15_mhbbh")
+feature_id = &"object.ability_loadout"
+provided_capabilities = Array[ExtResource("3_1fij3")]([SubResource("Resource_5qjii")])
+required_dependencies = Array[ExtResource("12_7vujr")]([SubResource("Resource_efum4")])
+metadata/_custom_type_script = "uid://d0drw08ih1tc"
+
+[node name="GameControlArbiter" type="Node" parent="GameObjectKernel" unique_id=1116666472]
+script = ExtResource("16_2twng")
+feature_id = &"object.control_arbiter"
+provided_capabilities = Array[ExtResource("3_1fij3")]([SubResource("Resource_exepw")])
+metadata/_custom_type_script = "uid://cilxfly7tens6"
+
+[node name="GameControlEndpoint" type="Node" parent="GameObjectKernel" unique_id=2039931859]
+script = ExtResource("17_wq4af")
+feature_id = &"object.control_endpoint"
+provided_capabilities = Array[ExtResource("3_1fij3")]([SubResource("Resource_cs52w"), SubResource("Resource_bci1f"), SubResource("Resource_sqgs3")])
+required_dependencies = Array[ExtResource("12_7vujr")]([SubResource("Resource_g3ic3")])
+optional_dependencies = Array[ExtResource("12_7vujr")]([SubResource("Resource_7tqgn"), SubResource("Resource_g484a"), SubResource("Resource_u6svk"), SubResource("Resource_cwdbi")])
+metadata/_custom_type_script = "uid://bs8eqyw1vxgxi"
+
+[node name="GameCharacterMotor" type="Node" parent="GameObjectKernel" unique_id=127847247]
+script = ExtResource("18_ympcd")
+feature_id = &"object.character_motor"
+provided_capabilities = Array[ExtResource("3_1fij3")]([SubResource("Resource_awqfa"), SubResource("Resource_gsoqf")])
+optional_dependencies = Array[ExtResource("12_7vujr")]([SubResource("Resource_2ugwg")])
+metadata/_custom_type_script = "uid://le55y1fr7gdu"
+
+[node name="GameInteractionSource" type="Node" parent="GameObjectKernel" unique_id=519699128]
+script = ExtResource("19_2mumb")
+feature_id = &"object.interaction_source"
+provided_capabilities = Array[ExtResource("3_1fij3")]([SubResource("Resource_to7pv"), SubResource("Resource_385xc")])
+metadata/_custom_type_script = "uid://dxcol2alnl1gm"
+
+[node name="GameDamageReceiver" type="Node" parent="GameObjectKernel" unique_id=975646962]
+script = ExtResource("20_pmph7")
+feature_id = &"object.damage_receiver"
+provided_capabilities = Array[ExtResource("3_1fij3")]([SubResource("Resource_kymkb")])
+required_dependencies = Array[ExtResource("12_7vujr")]([SubResource("Resource_07a75")])
+optional_dependencies = Array[ExtResource("12_7vujr")]([SubResource("Resource_mof8d")])
+metadata/_custom_type_script = "uid://0hmmavr7frwd"
+
+[node name="GameDeathPolicy" type="Node" parent="GameObjectKernel" unique_id=1198181599]
+script = ExtResource("21_xkbve")
+watched_meter_id = &"base.meter.health"
+feature_id = &"object.death_policy"
+provided_capabilities = Array[ExtResource("3_1fij3")]([SubResource("Resource_ag6yi")])
+required_dependencies = Array[ExtResource("12_7vujr")]([SubResource("Resource_1m0sx")])
+optional_dependencies = Array[ExtResource("12_7vujr")]([SubResource("Resource_sfgp7")])
+metadata/_custom_type_script = "uid://d1sbmc55qwxbi"
+
+[node name="GamePresentationCueReceiver" type="Node" parent="GameObjectKernel" unique_id=107133028]
+script = ExtResource("22_e7ryo")
+feature_id = &"object.presentation_cue_receiver"
+provided_capabilities = Array[ExtResource("3_1fij3")]([SubResource("Resource_qimwb")])
+metadata/_custom_type_script = "uid://c20a1pixu0px7"
