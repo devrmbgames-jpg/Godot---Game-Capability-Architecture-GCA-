@@ -72,7 +72,8 @@ func request_ownership(source_id: StringName, channel_id: StringName, priority: 
 	if not current.is_empty() and priority <= current_priority:
 		return GameCommandResult.rejected_temporary(&"channel_occupied", "Control channel is owned by an equal or higher priority source.", {"owner": current})
 	if temporary_override and not current.is_empty():
-		var stack: Array[StringName] = _restore_stack.get(channel_id, [])
+		var stack: Array[StringName] = []
+		stack = _restore_stack.get(channel_id, stack)
 		stack.append(current)
 		_restore_stack[channel_id] = stack
 	_set_owner(channel_id, source_id, priority)
@@ -83,7 +84,8 @@ func release_ownership(source_id: StringName, channel_id: StringName) -> GameCom
 	if _owners.get(channel_id, &"") != source_id: return GameCommandResult.success_unchanged(&"channel_not_owned")
 	_notify_source(source_id, channel_id, false)
 	_owners.erase(channel_id); _priorities.erase(channel_id)
-	var stack: Array[StringName] = _restore_stack.get(channel_id, [])
+	var stack: Array[StringName] = []
+	stack = _restore_stack.get(channel_id, stack)
 	while not stack.is_empty():
 		var fallback: StringName = stack.pop_back()
 		if _sources.has(fallback):
