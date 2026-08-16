@@ -59,15 +59,22 @@ func _requirements_pass(definition: GameEffectDefinition) -> bool:
 			return false
 	return true
 
+func _rollback_attribute_modifiers(modifiers: Array[GameAttributeModifier]) -> void:
+	for modifier: GameAttributeModifier in modifiers:
+		if modifier != null:
+			_attributes.remove_modifier(modifier.get_handle_id())
+
 func _apply_attribute_modifiers(active_effect: GameActiveEffect) -> GameCommandResult:
 	var definition: GameEffectDefinition = active_effect.get_definition()
 	if definition.attribute_modifiers.is_empty():
 		return GameCommandResult.success_unchanged(&"no_attribute_modifiers")
 	if _attributes == null:
 		return GameCommandResult.missing_capability(GameCapabilityIds.ATTRIBUTES_MODIFY)
+	var applied_modifiers: Array[GameAttributeModifier] = []
 	_attributes.begin_transaction()
 	for modifier_spec: GameEffectAttributeModifierSpec in definition.attribute_modifiers:
 		if modifier_spec == null or not modifier_spec.is_valid():
+			_rollback_attribute_modifiers(applied_modifiers)
 			_attributes.end_transaction()
 			return GameCommandResult.configuration_error(&"invalid_effect_modifier", "Effect attribute modifier spec is invalid.")
 		var modifier: GameAttributeModifier = _attributes.add_modifier(
@@ -79,8 +86,11 @@ func _apply_attribute_modifiers(active_effect: GameActiveEffect) -> GameCommandR
 			modifier_spec.priority
 		)
 		if modifier == null:
+			_rollback_attribute_modifiers(applied_modifiers)
 			_attributes.end_transaction()
 			return GameCommandResult.configuration_error(&"invalid_effect_modifier", "Effect modifier target is invalid.")
+		applied_modifiers.append(modifier)
+	for modifier: GameAttributeModifier in applied_modifiers:
 		active_effect.add_modifier_handle(modifier.get_handle_id())
 	_attributes.end_transaction()
 	return GameCommandResult.success_changed(&"effect_modifiers_applied")
