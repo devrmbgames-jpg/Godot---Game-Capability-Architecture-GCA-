@@ -54,7 +54,7 @@ func set_failure_reason(value: StringName) -> void: _failure_reason = value
 ## Returns the stored failure reason.
 func get_failure_reason() -> StringName: return _failure_reason
 ## Registers prepared cost data for commit, rollback, or refund handling.
-func add_prepared_cost(cost: GameAbilityCost, prepared: Variant) -> void: _prepared_costs.append({"cost": cost, "prepared": prepared})
+func add_prepared_cost(cost: GameAbilityCost, prepared: Variant) -> void: _prepared_costs.append({&"cost": cost, &"prepared": prepared})
 ## Returns a copy of prepared cost records.
 func get_prepared_costs() -> Array[Dictionary]: return _prepared_costs.duplicate()
 ## Registers a tag handle owned by this execution.
