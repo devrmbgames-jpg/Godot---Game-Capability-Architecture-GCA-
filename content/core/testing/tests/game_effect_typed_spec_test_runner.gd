@@ -194,6 +194,31 @@ func _test_legacy_migration() -> void:
 	var migrated_meters: Array = batch_report.get("meter_operations") as Array
 	_assert_true(migrated_attributes.size() == 2 and migrated_meters.size() == 2, "Batch migration should preserve operation counts.")
 
+func _test_serialized_migration_roundtrip() -> void:
+	var source_path: String = "res://content/gameplay/effects/definitions/eff_def_burning.tres"
+	var migrated: GameEffectDefinition = ResourceLoader.load(source_path, "", ResourceLoader.CACHE_MODE_IGNORE) as GameEffectDefinition
+	_assert_true(migrated != null, "Migrated burning effect should load as GameEffectDefinition.")
+	if migrated == null:
+		return
+	_assert_true(migrated.schema_version == GameEffectDefinition.CURRENT_SCHEMA_VERSION, "Migrated burning effect should declare the current schema version.")
+	_assert_true(migrated.meter_operations.size() == 1 and migrated.meter_operations[0] != null, "Migrated burning effect should contain one typed meter operation.")
+	if migrated.meter_operations.is_empty() or migrated.meter_operations[0] == null:
+		return
+	_assert_true(migrated.meter_operations[0].meter_id == &"base.meter.health", "Migrated burning target ID should be preserved.")
+	_assert_float(migrated.meter_operations[0].delta, -5.0, "Migrated burning delta should be preserved.")
+
+	var roundtrip_path: String = "user://gca_effect_typed_specs_roundtrip.tres"
+	var save_error: Error = ResourceSaver.save(migrated, roundtrip_path)
+	_assert_true(save_error == OK, "Migrated typed effect should save through ResourceSaver.")
+	if save_error != OK:
+		return
+	var reloaded: GameEffectDefinition = ResourceLoader.load(roundtrip_path, "", ResourceLoader.CACHE_MODE_IGNORE) as GameEffectDefinition
+	_assert_true(reloaded != null and reloaded.meter_operations.size() == 1, "Saved typed effect should reopen without losing nested operations.")
+	if reloaded != null and not reloaded.meter_operations.is_empty():
+		_assert_true(reloaded.meter_operations[0] != null and reloaded.meter_operations[0].meter_id == &"base.meter.health", "Round-tripped typed meter target should be preserved.")
+		_assert_float(reloaded.meter_operations[0].delta, -5.0, "Round-tripped typed meter delta should be preserved.")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(roundtrip_path))
+
 func _test_runtime_application_and_cleanup() -> void:
 	var fixture: Dictionary = _make_runtime_fixture()
 	if not _fixture_initialized(fixture, "Typed effect runtime fixture should initialize."):
@@ -291,6 +316,7 @@ func _run_all_tests() -> void:
 	_test_spec_validation()
 	_test_definition_nested_validation()
 	_test_legacy_migration()
+	_test_serialized_migration_roundtrip()
 	_test_runtime_application_and_cleanup()
 	_test_attribute_atomicity()
 	_test_meter_failure_cleans_modifier()
