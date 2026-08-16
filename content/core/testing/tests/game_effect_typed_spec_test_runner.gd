@@ -58,7 +58,8 @@ func _make_runtime_fixture() -> Dictionary:
 	var identity := GameObjectIdentity.new()
 	identity.stable_id = &"test.effect.fixture"
 	kernel.add_child(identity)
-	kernel.add_child(GameTagContainer.new())
+	var tags := GameTagContainer.new()
+	kernel.add_child(tags)
 
 	var attribute_definition := GameAttributeDefinition.new()
 	attribute_definition.attribute_id = &"test.attribute.power"
@@ -82,6 +83,7 @@ func _make_runtime_fixture() -> Dictionary:
 	return {
 		"root": root,
 		"kernel": kernel,
+		"tags": tags,
 		"attributes": attributes,
 		"meters": meters,
 		"effects": effects,
@@ -178,16 +180,15 @@ func _test_legacy_migration() -> void:
 	var empty_target_report: Dictionary = GameEffectLegacyMigrator.migrate_attribute_modifier({})
 	_assert_true(not bool(empty_target_report.get("ok", true)), "Historical empty target fallback should materialize and then fail typed validation.")
 
-	var batch_report: Dictionary = GameEffectLegacyMigrator.migrate_operation_arrays(
-		[
-			{&"attribute_id": &"test.attribute.power", &"magnitude": 1.0},
-			{&"attribute_id": &"test.attribute.power", &"operation": GameAttributeModifier.Operation.INCREASE, &"magnitude": 0.25, &"priority": 5},
-		],
-		[
-			{&"meter_id": &"test.meter.health", &"delta": -2.0},
-			{&"meter_id": &"test.meter.health", &"delta": -3.0},
-		]
-	)
+	var legacy_attributes: Array[Dictionary] = [
+		{&"attribute_id": &"test.attribute.power", &"magnitude": 1.0},
+		{&"attribute_id": &"test.attribute.power", &"operation": GameAttributeModifier.Operation.INCREASE, &"magnitude": 0.25, &"priority": 5},
+	]
+	var legacy_meters: Array[Dictionary] = [
+		{&"meter_id": &"test.meter.health", &"delta": -2.0},
+		{&"meter_id": &"test.meter.health", &"delta": -3.0},
+	]
+	var batch_report: Dictionary = GameEffectLegacyMigrator.migrate_operation_arrays(legacy_attributes, legacy_meters)
 	_assert_true(bool(batch_report.get("ok", false)), "Multiple legacy operations should migrate in one deterministic batch.")
 	var migrated_attributes: Array = batch_report.get("attribute_modifiers") as Array
 	var migrated_meters: Array = batch_report.get("meter_operations") as Array
@@ -225,7 +226,7 @@ func _test_attribute_atomicity() -> void:
 	var result: GameCommandResult = _apply_to_fixture(fixture, definition, &"test.effect.attribute_atomicity.apply")
 	var attributes: GameAttributes = fixture.get("attributes") as GameAttributes
 	var effects: GameEffects = fixture.get("effects") as GameEffects
-	_assert_true(not result.is_success(), "Unknown second attribute target should reject effect configuration.")
+	_assert_true(result.is_configuration_error() and result.get_reason_code() == &"invalid_effect_modifier", "Unknown second attribute target should preserve the configuration failure contract.")
 	_assert_float(attributes.get_value(&"test.attribute.power"), 10.0, "Failed modifier batch must roll back the first modifier inside the transaction.")
 	_assert_true(effects.get_debug_snapshot().is_empty(), "Failed modifier batch must not leave an active effect.")
 	_free_fixture(fixture)
@@ -236,13 +237,16 @@ func _test_meter_failure_cleans_modifier() -> void:
 		_free_fixture(fixture)
 		return
 	var definition: GameEffectDefinition = _make_effect(&"test.effect.meter_failure")
+	definition.granted_tags.append(&"test.status.temporary")
 	definition.attribute_modifiers.append(_make_attribute_spec(&"test.attribute.power", 6.0))
 	definition.meter_operations.append(_make_meter_spec(&"test.meter.missing", -1.0))
 	var result: GameCommandResult = _apply_to_fixture(fixture, definition, &"test.effect.meter_failure.apply")
+	var tags: GameTagContainer = fixture.get("tags") as GameTagContainer
 	var attributes: GameAttributes = fixture.get("attributes") as GameAttributes
 	var effects: GameEffects = fixture.get("effects") as GameEffects
-	_assert_true(not result.is_success(), "Unknown meter target should reject effect application.")
+	_assert_true(result.get_status() == GameCommandResult.Status.REJECTED_PERMANENT and result.get_reason_code() == &"unknown_meter", "Unknown meter target should preserve the Meter failure code.")
 	_assert_float(attributes.get_value(&"test.attribute.power"), 10.0, "Meter failure must clean modifiers already owned by the effect.")
+	_assert_true(not tags.has_exact_tag(&"test.status.temporary"), "Meter failure must clean tags already owned by the effect.")
 	_assert_true(effects.get_debug_snapshot().is_empty(), "Meter failure must not leave an active effect.")
 	_free_fixture(fixture)
 
