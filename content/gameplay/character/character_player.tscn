@@ -1,12 +1,52 @@
 [gd_scene format=3 uid="uid://ddtxped6idibp"]
 
 [ext_resource type="PackedScene" uid="uid://hq335i26pdxt" path="res://content/gameplay/character/character_base.tscn" id="1_6umq1"]
+[ext_resource type="Script" uid="uid://d2ms4x65aibu" path="res://content/gameplay/character/character_player.gd" id="2_cmi7q"]
+[ext_resource type="Script" uid="uid://dbaqs44bd1sfo" path="res://content/core/abilities/definitions/game_ability_definition.gd" id="2_pw5ui"]
 [ext_resource type="Script" uid="uid://cjepxlk30tfm0" path="res://content/core/control/sources/game_player_input_source.gd" id="2_qysly"]
+[ext_resource type="Resource" uid="uid://bcxsakk3ks6bs" path="res://content/gameplay/abilities/definitions/abil_def_character_attack.tres" id="3_6ovjk"]
+[ext_resource type="Resource" uid="uid://daka3fponi133" path="res://content/gameplay/abilities/definitions/abil_def_character_dodge.tres" id="4_cmi7q"]
+[ext_resource type="Resource" uid="uid://c3kv5dtixlf85" path="res://content/gameplay/abilities/definitions/abil_def_interact.tres" id="5_tqdp3"]
+[ext_resource type="Resource" uid="uid://fjdl602s6583" path="res://content/gameplay/abilities/definitions/abil_def_place_mine.tres" id="6_eh1nx"]
+[ext_resource type="Script" uid="uid://cf61jj2lmnpxl" path="res://content/core/control/sources/game_ability_input_binding.gd" id="8_6ovjk"]
+
+[sub_resource type="Resource" id="Resource_i18rk"]
+script = ExtResource("8_6ovjk")
+input_action = &"game_attack"
+slot_id = &"slot.primary"
+metadata/_custom_type_script = "uid://cf61jj2lmnpxl"
+
+[sub_resource type="Resource" id="Resource_xtkgn"]
+script = ExtResource("8_6ovjk")
+input_action = &"game_interact"
+slot_id = &"slot.interaction"
+metadata/_custom_type_script = "uid://cf61jj2lmnpxl"
+
+[sub_resource type="Resource" id="Resource_sns6d"]
+script = ExtResource("8_6ovjk")
+input_action = &"game_dodge"
+slot_id = &"slot.mobility"
+metadata/_custom_type_script = "uid://cf61jj2lmnpxl"
+
+[sub_resource type="Resource" id="Resource_5ae38"]
+script = ExtResource("8_6ovjk")
+input_action = &"game_abil_1"
+slot_id = &"slot.utility_1"
+metadata/_custom_type_script = "uid://cf61jj2lmnpxl"
 
 [node name="CharacterBase" unique_id=1955737221 instance=ExtResource("1_6umq1")]
+script = ExtResource("2_cmi7q")
+
+[node name="GameObjectIdentity" parent="GameObjectKernel" parent_id_path=PackedInt32Array(705682530) index="0" unique_id=1078225416]
+stable_id = &"object.entity.player"
+allow_runtime_generated_id = false
+
+[node name="GameAbilities" parent="GameObjectKernel" parent_id_path=PackedInt32Array(705682530) index="5" unique_id=1008763848]
+initial_abilities = Array[ExtResource("2_pw5ui")]([ExtResource("3_6ovjk"), ExtResource("4_cmi7q"), ExtResource("5_tqdp3"), ExtResource("6_eh1nx")])
 
 [node name="GamePlayerInputSource" type="Node" parent="." index="3" unique_id=1559205656]
 script = ExtResource("2_qysly")
-source_id = &"control.player"
+ability_input_bindings = Array[ExtResource("8_6ovjk")]([SubResource("Resource_i18rk"), SubResource("Resource_xtkgn"), SubResource("Resource_sns6d"), SubResource("Resource_5ae38")])
+source_id = &"object.entity.player"
 requested_channels = Array[StringName]([&"movement", &"abilities"])
 metadata/_custom_type_script = "uid://cjepxlk30tfm0"

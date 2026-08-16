@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://hq335i26pdxt"]
 
 [ext_resource type="Script" uid="uid://drktecnygf1s6" path="res://content/core/object/kernel/game_object_kernel.gd" id="1_cjksi"]
+[ext_resource type="Script" uid="uid://blvh1dbm6jhnm" path="res://content/gameplay/character/character_base.gd" id="1_ympcd"]
 [ext_resource type="Script" uid="uid://dc07aejmptsxw" path="res://content/core/object/identity/game_object_identity.gd" id="2_0j5mx"]
 [ext_resource type="Script" uid="uid://cj1dn4vkggo6v" path="res://content/core/capabilities/contracts/game_capability_spec.gd" id="3_1fij3"]
 [ext_resource type="Script" uid="uid://bg0cgb3piiol5" path="res://content/core/tags/game_tag_container.gd" id="4_wke4m"]
@@ -15,8 +16,12 @@
 [ext_resource type="Script" uid="uid://beveiy3tlkusa" path="res://content/core/effects/runtime/game_effects.gd" id="13_ai73i"]
 [ext_resource type="Script" uid="uid://o4kr8emi1m8a" path="res://content/core/abilities/game_abilities.gd" id="14_w6f2a"]
 [ext_resource type="Script" uid="uid://d0drw08ih1tc" path="res://content/core/abilities/loadout/game_ability_loadout.gd" id="15_mhbbh"]
+[ext_resource type="Script" uid="uid://dbaqs44bd1sfo" path="res://content/core/abilities/definitions/game_ability_definition.gd" id="15_wq4af"]
 [ext_resource type="Script" uid="uid://cilxfly7tens6" path="res://content/core/control/arbiter/game_control_arbiter.gd" id="16_2twng"]
+[ext_resource type="Resource" uid="uid://bcxsakk3ks6bs" path="res://content/gameplay/abilities/definitions/abil_def_character_attack.tres" id="16_ympcd"]
+[ext_resource type="Resource" uid="uid://daka3fponi133" path="res://content/gameplay/abilities/definitions/abil_def_character_dodge.tres" id="17_2mumb"]
 [ext_resource type="Script" uid="uid://bs8eqyw1vxgxi" path="res://content/core/control/endpoint/game_control_endpoint.gd" id="17_wq4af"]
+[ext_resource type="Resource" uid="uid://c3kv5dtixlf85" path="res://content/gameplay/abilities/definitions/abil_def_interact.tres" id="18_pmph7"]
 [ext_resource type="Script" uid="uid://le55y1fr7gdu" path="res://content/core/movement/motors/game_character_motor.gd" id="18_ympcd"]
 [ext_resource type="Script" uid="uid://dxcol2alnl1gm" path="res://content/core/interaction/source/game_interaction_source.gd" id="19_2mumb"]
 [ext_resource type="Script" uid="uid://0hmmavr7frwd" path="res://content/core/damage/game_damage_receiver.gd" id="20_pmph7"]
@@ -239,6 +244,7 @@ script = ExtResource("3_1fij3")
 capability_id = &"presentation.cue_receiver"
 
 [node name="CharacterBase" type="CharacterBody3D" unique_id=1955737221]
+script = ExtResource("1_ympcd")
 
 [node name="Visual" type="Node3D" parent="." unique_id=1245736917]
 
@@ -294,6 +300,7 @@ metadata/_custom_type_script = "uid://beveiy3tlkusa"
 
 [node name="GameAbilities" type="Node" parent="GameObjectKernel" unique_id=1008763848]
 script = ExtResource("14_w6f2a")
+initial_abilities = Array[ExtResource("15_wq4af")]([ExtResource("16_ympcd"), ExtResource("17_2mumb"), ExtResource("18_pmph7")])
 feature_id = &"object.abilities"
 provided_capabilities = Array[ExtResource("3_1fij3")]([SubResource("Resource_p33le"), SubResource("Resource_tivkd"), SubResource("Resource_q42t1"), SubResource("Resource_m3fpv"), SubResource("Resource_btjmw")])
 optional_dependencies = Array[ExtResource("12_7vujr")]([SubResource("Resource_a8tum"), SubResource("Resource_124d0"), SubResource("Resource_3rvvb")])

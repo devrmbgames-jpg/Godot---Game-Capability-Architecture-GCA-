@@ -1,0 +1,2 @@
+extends GameCharacterBase
+class_name GameCharacterPlayer
