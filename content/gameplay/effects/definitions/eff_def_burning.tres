@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1_5cb3c")
-effect_id = &"base.effect.burrning"
+effect_id = &"base.effect.burning"
 duration_policy = 1
 duration = 4.0
 period = 1.0
