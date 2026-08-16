@@ -260,6 +260,7 @@ shape = SubResource("CapsuleShape3D_bghjr")
 [node name="GameObjectKernel" type="Node" parent="." unique_id=705682530 node_paths=PackedStringArray("object_root_override")]
 script = ExtResource("1_cjksi")
 object_root_override = NodePath("..")
+auto_initialize = false
 metadata/_custom_type_script = "uid://drktecnygf1s6"
 
 [node name="GameObjectIdentity" type="Node" parent="GameObjectKernel" unique_id=1078225416]
@@ -329,6 +330,7 @@ metadata/_custom_type_script = "uid://bs8eqyw1vxgxi"
 
 [node name="GameCharacterMotor" type="Node" parent="GameObjectKernel" unique_id=127847247]
 script = ExtResource("18_ympcd")
+speed_attribute_id = &"base.attribute.movement_speed"
 feature_id = &"object.character_motor"
 provided_capabilities = Array[ExtResource("3_1fij3")]([SubResource("Resource_awqfa"), SubResource("Resource_gsoqf")])
 optional_dependencies = Array[ExtResource("12_7vujr")]([SubResource("Resource_2ugwg")])
@@ -342,6 +344,7 @@ metadata/_custom_type_script = "uid://dxcol2alnl1gm"
 
 [node name="GameDamageReceiver" type="Node" parent="GameObjectKernel" unique_id=975646962]
 script = ExtResource("20_pmph7")
+target_meter_id = &"base.meter.health"
 feature_id = &"object.damage_receiver"
 provided_capabilities = Array[ExtResource("3_1fij3")]([SubResource("Resource_kymkb")])
 required_dependencies = Array[ExtResource("12_7vujr")]([SubResource("Resource_07a75")])
