@@ -4,9 +4,15 @@
 [ext_resource type="Script" uid="uid://buj6fbbs1gurm" path="res://content/core/abilities/operations/game_ability_operation.gd" id="2_m3f8d"]
 [ext_resource type="Script" uid="uid://cw6lntlsunu2h" path="res://content/core/abilities/requirements/game_ability_requirement.gd" id="3_qyhte"]
 [ext_resource type="Script" uid="uid://dbaqs44bd1sfo" path="res://content/core/abilities/definitions/game_ability_definition.gd" id="4_bdhrd"]
+[ext_resource type="Script" path="res://content/gameplay/abilities/operations/place_mine_operation_base.gd" id="5_mine"]
+
+[sub_resource type="Resource" id="Resource_place_mine_operation"]
+script = ExtResource("5_mine")
+metadata/_custom_type_script = "res://content/gameplay/abilities/operations/place_mine_operation_base.gd"
 
 [resource]
 script = ExtResource("4_bdhrd")
 ability_id = &"base.ability.place.mine"
 display_name = "Place Mine"
+operations = Array[ExtResource("2_m3f8d")]([SubResource("Resource_place_mine_operation")])
 metadata/_custom_type_script = "uid://dbaqs44bd1sfo"
