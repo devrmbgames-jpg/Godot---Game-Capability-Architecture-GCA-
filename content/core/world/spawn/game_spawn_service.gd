@@ -14,7 +14,14 @@ signal object_despawned(stable_id: StringName, reason: StringName)
 @export var default_parent: Node = null
 @export var object_resolver: GameObjectResolver = null
 
+# ======== PRIVATE VAR ======
+var _injected_world_ports: Dictionary = {}
+
 # ====== PUBLIC ========
+## Stores the restricted world ports injected into subsequently spawned kernels.
+func configure_world_ports(world_ports: Dictionary) -> void:
+	_injected_world_ports = world_ports.duplicate()
+
 ## Instantiates and initializes a gameplay scene, returning its registered handle.
 func spawn(scene_path: String, transform: Transform3D, execution_context: GameExecutionContext, parent: Node = null, stable_id: StringName = &"", region_id: StringName = &"") -> GameCommandResult:
 	if scene_path.is_empty() or execution_context == null:
@@ -38,6 +45,7 @@ func spawn(scene_path: String, transform: Transform3D, execution_context: GameEx
 		root.queue_free()
 		return GameCommandResult.configuration_error(&"spawn_missing_kernel", "Spawned scene requires GameObjectKernel.")
 	kernel.auto_initialize = false
+	kernel.injected_world_ports = _injected_world_ports.duplicate()
 	if not stable_id.is_empty():
 		for child: Node in kernel.get_children():
 			if child is GameObjectIdentity:
