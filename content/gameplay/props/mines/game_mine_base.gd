@@ -1,12 +1,12 @@
 extends Area3D
 class_name GameMineBase
 
+# ======= ON READY ========
+@onready var _kernel: GameObjectKernel = $GameObjectKernel
+
 # ======== EXPORT =========
 @export_range(0.0, 10000.0, 0.1) var damage: float = 50.0
 @export var damage_tags: Array[StringName] = [&"damage.explosive"]
-
-# ======= ON READY ========
-@onready var _kernel: GameObjectKernel = $GameObjectKernel
 
 # ======== PRIVATE VAR ======
 var _triggered: bool = false
