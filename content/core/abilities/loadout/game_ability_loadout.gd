@@ -95,7 +95,8 @@ func on_capability_lost(capability_id: StringName) -> void:
 
 # ====== HELPERS ========
 func _sort_slot_bindings(slot_id: StringName) -> void:
-	var ids: Array[int] = _binding_ids_by_slot.get(slot_id, [])
+	var ids: Array[int] = []
+	ids = _binding_ids_by_slot.get(slot_id, ids)
 	ids.sort_custom(
 		func(a_id: int, b_id: int) -> bool:
 			var a: GameAbilitySlotBinding = _bindings.get(a_id) as GameAbilitySlotBinding
@@ -118,7 +119,8 @@ func _erase_binding(binding: GameAbilitySlotBinding) -> void:
 	if binding == null:
 		return
 	var slot_id: StringName = binding.get_slot_id()
-	var ids: Array[int] = _binding_ids_by_slot.get(slot_id, [])
+	var ids: Array[int] = []
+	ids = _binding_ids_by_slot.get(slot_id, ids)
 	ids.erase(binding.get_handle_id())
 	if ids.is_empty():
 		_binding_ids_by_slot.erase(slot_id)
@@ -156,7 +158,7 @@ func bind_grant(
 		priority
 	)
 	_bindings[_binding_counter] = binding
-	var ids: Array[int]
+	var ids: Array[int] = []
 	ids = _binding_ids_by_slot.get(slot_id, ids)
 	ids.append(_binding_counter)
 	_binding_ids_by_slot[slot_id] = ids
