@@ -44,7 +44,7 @@ func set_current(value: float) -> Dictionary:
 	_current = clampf(value, _definition.minimum, _maximum)
 	_depleted = _current <= _definition.depletion_threshold
 	if not is_equal_approx(previous, _current): _version += 1
-	return {"previous": previous, "current": _current, "delta": _current - previous, "depleted_crossed": not was_depleted and _depleted, "filled_crossed": previous < _maximum and is_equal_approx(_current, _maximum)}
+	return {&"previous": previous, &"current": _current, &"delta": _current - previous, &"depleted_crossed": not was_depleted and _depleted, &"filled_crossed": previous < _maximum and is_equal_approx(_current, _maximum)}
 ## Replaces the maximum and updates the current amount according to [param policy].
 ## Returns previous and current maximum/current values.
 func set_maximum(value: float, policy: GameMeterDefinition.MaximumChangePolicy) -> Dictionary:
@@ -59,7 +59,7 @@ func set_maximum(value: float, policy: GameMeterDefinition.MaximumChangePolicy) 
 	_current = clampf(_current, _definition.minimum, _maximum)
 	_depleted = _current <= _definition.depletion_threshold
 	_version += 1
-	return {"previous_maximum": previous_maximum, "maximum": _maximum, "previous_current": previous_current, "current": _current}
+	return {&"previous_maximum": previous_maximum, &"maximum": _maximum, &"previous_current": previous_current, &"current": _current}
 ## Returns a diagnostic snapshot of current, maximum, normalized, and version state.
 func get_debug_snapshot() -> Dictionary:
 	return {"current": _current, "maximum": _maximum, "normalized": get_normalized(), "depleted": _depleted, "version": _version}
