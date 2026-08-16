@@ -53,22 +53,24 @@ func get_validation_errors() -> PackedStringArray:
 		errors.append("Effect '%s': stack_limit must be at least one." % effect_label)
 
 	for index: int in attribute_modifiers.size():
+		var display_index: int = index + 1
 		var modifier_spec: GameEffectAttributeModifierSpec = attribute_modifiers[index]
 		if modifier_spec == null:
-			errors.append("Effect '%s': attribute modifier #%d is null." % [effect_label, index])
+			errors.append("Effect '%s': attribute modifier #%d is null." % [effect_label, display_index])
 			continue
 		var target_label: String = String(modifier_spec.attribute_id) if not modifier_spec.attribute_id.is_empty() else "<empty>"
 		for nested_error: String in modifier_spec.get_validation_errors():
-			errors.append("Effect '%s': attribute modifier #%d target '%s': %s" % [effect_label, index, target_label, nested_error])
+			errors.append("Effect '%s': attribute modifier #%d target '%s': %s" % [effect_label, display_index, target_label, nested_error])
 
 	for index: int in meter_operations.size():
+		var display_index: int = index + 1
 		var meter_operation: GameEffectMeterOperationSpec = meter_operations[index]
 		if meter_operation == null:
-			errors.append("Effect '%s': meter operation #%d is null." % [effect_label, index])
+			errors.append("Effect '%s': meter operation #%d is null." % [effect_label, display_index])
 			continue
 		var target_label: String = String(meter_operation.meter_id) if not meter_operation.meter_id.is_empty() else "<empty>"
 		for nested_error: String in meter_operation.get_validation_errors():
-			errors.append("Effect '%s': meter operation #%d target '%s': %s" % [effect_label, index, target_label, nested_error])
+			errors.append("Effect '%s': meter operation #%d target '%s': %s" % [effect_label, display_index, target_label, nested_error])
 	return errors
 
 ## Returns whether the effect and every nested operation spec are valid.
