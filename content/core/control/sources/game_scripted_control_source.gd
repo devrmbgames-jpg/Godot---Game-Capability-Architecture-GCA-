@@ -29,12 +29,12 @@ func release_channels(channels: Array[StringName]) -> void:
 
 ## Sends a continuous move-to intent with a completion tolerance.
 func move_to(point: Vector3, tolerance: float, execution_context: GameExecutionContext) -> GameCommandResult:
-	return submit_intent(&"movement.move_to", GameControlChannels.MOVEMENT, execution_context, {"target_point": point, "tolerance": tolerance}, true)
+	return submit_intent(&"movement.move_to", GameControlChannels.MOVEMENT, execution_context, {&"target_point": point, &"tolerance": tolerance}, true)
 
 ## Sends an ability activation intent with optional normalized payload data.
 func activate_ability(ability_id: StringName, execution_context: GameExecutionContext, payload: Dictionary = {}) -> GameCommandResult:
 	var intent_payload: Dictionary = payload.duplicate(true)
-	intent_payload["ability_id"] = ability_id
+	intent_payload[&"ability_id"] = ability_id
 	return submit_intent(&"ability.activate", GameControlChannels.ABILITIES, execution_context, intent_payload)
 
 ## Sends an interaction execution intent for the current focus/selection.
