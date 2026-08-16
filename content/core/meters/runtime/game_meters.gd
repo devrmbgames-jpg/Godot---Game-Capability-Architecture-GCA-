@@ -39,7 +39,7 @@ func on_game_initialize() -> GameCommandResult:
 ## Updates attribute-backed maximums after a local attribute change event.
 func on_local_event(event: GameLocalEvent) -> void:
 	if event.get_event_type_id() != &"attribute_changed": return
-	var attribute_id: StringName = event.get_payload().get("attribute_id", &"")
+	var attribute_id: StringName = event.get_payload().get(&"attribute_id", &"")
 	for meter: GameMeterValue in _values.values():
 		var definition: GameMeterDefinition = meter.get_definition()
 		if definition.maximum_policy == GameMeterDefinition.MaximumPolicy.ATTRIBUTE and definition.maximum_attribute_id == attribute_id:
@@ -48,7 +48,7 @@ func on_local_event(event: GameLocalEvent) -> void:
 # ====== HELPERS ========
 func _emit_meter_event(event_id: StringName, meter_id: StringName, payload: Dictionary, execution_context: GameExecutionContext) -> void:
 	var context: GameObjectContext = get_context()
-	if context != null: publish_local_event(GameLocalEvent.new(event_id, context.get_object_handle(), execution_context, payload.merged({"meter_id": meter_id})))
+	if context != null: publish_local_event(GameLocalEvent.new(event_id, context.get_object_handle(), execution_context, payload.merged({&"meter_id": meter_id})))
 
 # ====== PUBLIC ========
 ## Returns whether this component owns [param meter_id].
@@ -61,9 +61,9 @@ func get_maximum(meter_id: StringName, fallback: float = 0.0) -> float: return (
 func modify_current(meter_id: StringName, delta: float, execution_context: GameExecutionContext, reason: StringName = &"meter_modified") -> GameCommandResult:
 	if not _values.has(meter_id): return GameCommandResult.rejected_permanent(&"unknown_meter", "Unknown meter '%s'." % meter_id)
 	var change: Dictionary = (_values[meter_id] as GameMeterValue).set_current(get_current(meter_id) + delta)
-	_emit_meter_event(&"meter_changed", meter_id, change.merged({"reason": reason}), execution_context)
-	if change.depleted_crossed: _emit_meter_event(&"meter_depleted", meter_id, change, execution_context)
-	if change.filled_crossed: _emit_meter_event(&"meter_filled", meter_id, change, execution_context)
+	_emit_meter_event(&"meter_changed", meter_id, change.merged({&"reason": reason}), execution_context)
+	if bool(change.get(&"depleted_crossed", false)): _emit_meter_event(&"meter_depleted", meter_id, change, execution_context)
+	if bool(change.get(&"filled_crossed", false)): _emit_meter_event(&"meter_filled", meter_id, change, execution_context)
 	return GameCommandResult.success_changed(reason, change)
 ## Returns diagnostic state for every meter, keyed by meter ID.
 func get_debug_snapshot() -> Dictionary:
