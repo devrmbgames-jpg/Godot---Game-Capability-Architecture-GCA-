@@ -12,6 +12,8 @@ func _ready() -> void:
 	if world_context == null:
 		push_error("GameWorldBase requires GameWorldContext.")
 		return
+	if world_context.spawn_service != null:
+		world_context.spawn_service.configure_world_ports(world_context.get_world_ports())
 	var scene_tree: SceneTree = get_tree()
 	if not scene_tree.node_added.is_connected(_on_tree_node_added):
 		scene_tree.node_added.connect(_on_tree_node_added)
@@ -45,7 +47,13 @@ func _bind_kernel_deferred(kernel: GameObjectKernel, instance_id: int) -> void:
 func _bind_kernel(kernel: GameObjectKernel) -> bool:
 	if world_context == null or kernel == null:
 		return false
-	if kernel.get_lifecycle_state() != GameObjectKernel.LifecycleState.UNINITIALIZED:
+	var lifecycle_state: int = kernel.get_lifecycle_state()
+	if lifecycle_state == GameObjectKernel.LifecycleState.ACTIVATED:
+		return (
+			kernel.injected_world_ports.get(GameWorldPortIds.OBJECT_RESOLVE)
+			== world_context.object_resolver
+		)
+	if lifecycle_state != GameObjectKernel.LifecycleState.UNINITIALIZED:
 		push_error(
 			"GameWorldBase can only bind an uninitialized kernel. "
 			+ "Disable GameObjectKernel.auto_initialize for world-bound objects."
