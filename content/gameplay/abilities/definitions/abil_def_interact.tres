@@ -4,9 +4,15 @@
 [ext_resource type="Script" uid="uid://buj6fbbs1gurm" path="res://content/core/abilities/operations/game_ability_operation.gd" id="2_s2bx8"]
 [ext_resource type="Script" uid="uid://cw6lntlsunu2h" path="res://content/core/abilities/requirements/game_ability_requirement.gd" id="3_byjok"]
 [ext_resource type="Script" uid="uid://dbaqs44bd1sfo" path="res://content/core/abilities/definitions/game_ability_definition.gd" id="4_1wtm0"]
+[ext_resource type="Script" uid="uid://dm6o08vhb1kc5" path="res://content/core/interaction/operations/game_interaction_ability_operation.gd" id="5_4ncj7"]
+
+[sub_resource type="Resource" id="Resource_interact_operation"]
+script = ExtResource("5_4ncj7")
+metadata/_custom_type_script = "uid://dm6o08vhb1kc5"
 
 [resource]
 script = ExtResource("4_1wtm0")
-ability_id = &"base.ability.interract"
-display_name = "Interract"
+ability_id = &"base.ability.interact"
+display_name = "Interact"
+operations = Array[ExtResource("2_s2bx8")]([SubResource("Resource_interact_operation")])
 metadata/_custom_type_script = "uid://dbaqs44bd1sfo"

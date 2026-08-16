@@ -8,7 +8,32 @@
 [ext_resource type="Resource" uid="uid://daka3fponi133" path="res://content/gameplay/abilities/definitions/abil_def_character_dodge.tres" id="4_cmi7q"]
 [ext_resource type="Resource" uid="uid://c3kv5dtixlf85" path="res://content/gameplay/abilities/definitions/abil_def_interact.tres" id="5_tqdp3"]
 [ext_resource type="Resource" uid="uid://fjdl602s6583" path="res://content/gameplay/abilities/definitions/abil_def_place_mine.tres" id="6_eh1nx"]
+[ext_resource type="Script" uid="uid://dccnd6wc6a5dh" path="res://content/core/abilities/loadout/game_ability_slot_definition.gd" id="7_slots"]
 [ext_resource type="Script" uid="uid://cf61jj2lmnpxl" path="res://content/core/control/sources/game_ability_input_binding.gd" id="8_6ovjk"]
+
+[sub_resource type="Resource" id="Resource_slot_primary"]
+script = ExtResource("7_slots")
+slot_id = &"slot.primary"
+ability = ExtResource("3_6ovjk")
+metadata/_custom_type_script = "uid://dccnd6wc6a5dh"
+
+[sub_resource type="Resource" id="Resource_slot_interaction"]
+script = ExtResource("7_slots")
+slot_id = &"slot.interaction"
+ability = ExtResource("5_tqdp3")
+metadata/_custom_type_script = "uid://dccnd6wc6a5dh"
+
+[sub_resource type="Resource" id="Resource_slot_mobility"]
+script = ExtResource("7_slots")
+slot_id = &"slot.mobility"
+ability = ExtResource("4_cmi7q")
+metadata/_custom_type_script = "uid://dccnd6wc6a5dh"
+
+[sub_resource type="Resource" id="Resource_slot_utility_1"]
+script = ExtResource("7_slots")
+slot_id = &"slot.utility_1"
+ability = ExtResource("6_eh1nx")
+metadata/_custom_type_script = "uid://dccnd6wc6a5dh"
 
 [sub_resource type="Resource" id="Resource_i18rk"]
 script = ExtResource("8_6ovjk")
@@ -44,9 +69,12 @@ allow_runtime_generated_id = false
 [node name="GameAbilities" parent="GameObjectKernel" parent_id_path=PackedInt32Array(705682530) index="5" unique_id=1008763848]
 initial_abilities = Array[ExtResource("2_pw5ui")]([ExtResource("3_6ovjk"), ExtResource("4_cmi7q"), ExtResource("5_tqdp3"), ExtResource("6_eh1nx")])
 
+[node name="GameAbilityLoadout" parent="GameObjectKernel" parent_id_path=PackedInt32Array(705682530) index="6" unique_id=1001783847]
+initial_slots = Array[ExtResource("7_slots")]([SubResource("Resource_slot_primary"), SubResource("Resource_slot_interaction"), SubResource("Resource_slot_mobility"), SubResource("Resource_slot_utility_1")])
+
 [node name="GamePlayerInputSource" type="Node" parent="." index="3" unique_id=1559205656]
 script = ExtResource("2_qysly")
 ability_input_bindings = Array[ExtResource("8_6ovjk")]([SubResource("Resource_i18rk"), SubResource("Resource_xtkgn"), SubResource("Resource_sns6d"), SubResource("Resource_5ae38")])
-source_id = &"object.entity.player"
+source_id = &"control.player"
 requested_channels = Array[StringName]([&"movement", &"abilities"])
 metadata/_custom_type_script = "uid://cjepxlk30tfm0"

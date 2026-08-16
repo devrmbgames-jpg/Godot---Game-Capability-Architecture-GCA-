@@ -8,8 +8,9 @@
 [ext_resource type="Script" uid="uid://t7ym5wyr6ja5" path="res://content/core/persistence/game_persistence_coordinator.gd" id="6_h0f1j"]
 [ext_resource type="Script" uid="uid://bmxshhu57vpd6" path="res://content/core/world/context/game_world_context.gd" id="7_w7gxc"]
 
-[node name="World" type="Node3D" unique_id=635038900]
+[node name="World" type="Node3D" unique_id=635038900 node_paths=PackedStringArray("world_context")]
 script = ExtResource("1_idfe3")
+world_context = NodePath("WorldServices/GameWorldContext")
 
 [node name="WorldServices" type="Node" parent="." unique_id=589026209]
 
