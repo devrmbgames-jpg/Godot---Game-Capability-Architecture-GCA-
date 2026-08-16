@@ -57,7 +57,6 @@ func _on_body_entered(body: Node3D) -> void:
 	if not result.is_success():
 		return
 	_triggered = true
-	monitoring = false
 	var despawn_service: GameSpawnService = source_context.get_world_port(
 		GameWorldPortIds.DESPAWN_REQUEST
 	) as GameSpawnService
