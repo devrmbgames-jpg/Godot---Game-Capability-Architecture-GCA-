@@ -164,20 +164,20 @@ func handle_interaction_intent(intent: GameControlIntent) -> GameCommandResult:
 	match intent.get_intent_type():
 		&"interaction.focus":
 			return set_focus(
-				payload.get("target_handle") as GameObjectHandle,
+				payload.get(&"target_handle") as GameObjectHandle,
 				intent.get_execution_context()
 			)
 		&"interaction.select":
 			return select_offer(
-				StringName(payload.get("offer_id", &""))
+				StringName(payload.get(&"offer_id", &""))
 			)
 		&"interaction.execute":
 			var intent_id: StringName = StringName(
-				payload.get("intent_id", &"")
+				payload.get(&"intent_id", &"")
 			)
 			if not intent_id.is_empty():
 				var interaction_payload_value: Variant = payload.get(
-					"interaction_payload",
+					&"interaction_payload",
 					{}
 				)
 				var interaction_payload: Dictionary = {}

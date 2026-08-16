@@ -31,8 +31,8 @@ func move(
 		GameControlChannels.MOVEMENT,
 		execution_context,
 		{
-			"direction": direction.normalized(),
-			"magnitude": clampf(magnitude, 0.0, 1.0),
+			&"direction": direction.normalized(),
+			&"magnitude": clampf(magnitude, 0.0, 1.0),
 		},
 		true
 	)
@@ -57,9 +57,9 @@ func use_ability(
 		GameControlChannels.ABILITIES,
 		execution_context,
 		{
-			"ability_id": ability_id,
-			"targets": target_handles,
-			"activation_payload": activation_payload.duplicate(true),
+			&"ability_id": ability_id,
+			&"targets": target_handles,
+			&"activation_payload": activation_payload.duplicate(true),
 		}
 	)
 
@@ -72,5 +72,5 @@ func focus_interaction(
 		&"interaction.focus",
 		GameControlChannels.INTERACTION,
 		execution_context,
-		{"target_handle": target_handle}
+		{&"target_handle": target_handle}
 	)

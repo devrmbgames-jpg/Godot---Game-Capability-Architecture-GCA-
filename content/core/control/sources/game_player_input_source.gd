@@ -61,8 +61,8 @@ func _physics_process(_delta: float) -> void:
 			GameControlChannels.MOVEMENT,
 			context,
 			{
-				"direction": Vector3(input_vector.x, 0.0, input_vector.y),
-				"magnitude": minf(input_vector.length(), 1.0),
+				&"direction": Vector3(input_vector.x, 0.0, input_vector.y),
+				&"magnitude": minf(input_vector.length(), 1.0),
 			},
 			true
 		)
@@ -77,7 +77,7 @@ func _physics_process(_delta: float) -> void:
 				&"ability.activate",
 				GameControlChannels.ABILITIES,
 				context,
-				{"slot_id": binding.slot_id}
+				{&"slot_id": binding.slot_id}
 			)
 
 # ====== PUBLIC ========

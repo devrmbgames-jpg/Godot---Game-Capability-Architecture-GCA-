@@ -70,7 +70,7 @@ func _flush_events() -> void:
 	var ids: Array = _changed_ids.keys(); ids.sort()
 	for attribute_id: StringName in ids:
 		var execution_context: GameExecutionContext = context.create_root_execution_context(&"attribute_changed", "Attribute changed")
-		publish_local_event(GameLocalEvent.new(&"attribute_changed", context.get_object_handle(), execution_context, {"attribute_id": attribute_id, "value": get_value(attribute_id)}))
+		publish_local_event(GameLocalEvent.new(&"attribute_changed", context.get_object_handle(), execution_context, {&"attribute_id": attribute_id, &"value": get_value(attribute_id)}))
 	_changed_ids.clear()
 
 # ====== PUBLIC ========

@@ -68,12 +68,12 @@ func _apply_attribute_modifiers(active_effect: GameActiveEffect) -> GameCommandR
 	_attributes.begin_transaction()
 	for modifier_spec: Dictionary in definition.attribute_modifiers:
 		var modifier: GameAttributeModifier = _attributes.add_modifier(
-			modifier_spec.get("attribute_id", &""),
-			modifier_spec.get("operation", GameAttributeModifier.Operation.ADD),
-			float(modifier_spec.get("magnitude", 0.0)) * active_effect.get_stacks(),
+			modifier_spec.get(&"attribute_id", &""),
+			modifier_spec.get(&"operation", GameAttributeModifier.Operation.ADD),
+			float(modifier_spec.get(&"magnitude", 0.0)) * active_effect.get_stacks(),
 			definition.effect_id,
 			active_effect.get_handle_id(),
-			int(modifier_spec.get("priority", 0))
+			int(modifier_spec.get(&"priority", 0))
 		)
 		if modifier == null:
 			_attributes.end_transaction()
@@ -90,8 +90,8 @@ func _apply_meter_operations(active_effect: GameActiveEffect, execution_context:
 		return GameCommandResult.missing_capability(GameCapabilityIds.METERS_MODIFY)
 	for operation: Dictionary in definition.meter_operations:
 		var result: GameCommandResult = _meters.modify_current(
-			operation.get("meter_id", &""),
-			float(operation.get("delta", 0.0)) * active_effect.get_stacks(),
+			operation.get(&"meter_id", &""),
+			float(operation.get(&"delta", 0.0)) * active_effect.get_stacks(),
 			execution_context,
 			&"effect_meter_operation"
 		)

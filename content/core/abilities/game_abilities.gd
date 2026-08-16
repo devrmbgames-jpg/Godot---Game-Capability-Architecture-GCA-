@@ -132,9 +132,9 @@ func _commit_execution(execution: GameAbilityExecution) -> GameCommandResult:
 		if not result.is_success():
 			for index: int in range(committed.size() - 1, -1, -1):
 				var record: Dictionary = committed[index]
-				(record.cost as GameAbilityCost).rollback(self, grant, request, record.prepared)
+				(record[&"cost"] as GameAbilityCost).rollback(self, grant, request, record[&"prepared"])
 			return result
-		committed.append({"cost": cost, "prepared": prepared}); execution.add_prepared_cost(cost, prepared)
+		committed.append({&"cost": cost, &"prepared": prepared}); execution.add_prepared_cost(cost, prepared)
 	if not grant.consume_charge(): return GameCommandResult.new(GameCommandResult.Status.INSUFFICIENT_RESOURCE, &"no_charges", "Grant has no charges.")
 	var definition: GameAbilityDefinition = grant.get_definition()
 	if definition.cooldown_duration > 0.0:
@@ -162,11 +162,11 @@ func _run_execution(execution: GameAbilityExecution) -> GameCommandResult:
 		var result: GameCommandResult = operation.execute(self, execution)
 		if not result.is_success() and not operation.continue_on_failure:
 			execution.set_failure_reason(result.get_reason_code()); execution.set_state(GameAbilityExecution.State.FAILED); _cleanup_execution(execution)
-			_emit_event(&"ability_failed", execution.get_execution_context(), {"ability_id": execution.get_definition().ability_id, "execution_id": execution.get_execution_id(), "reason": result.get_reason_code()})
+			_emit_event(&"ability_failed", execution.get_execution_context(), {&"ability_id": execution.get_definition().ability_id, &"execution_id": execution.get_execution_id(), &"reason": result.get_reason_code()})
 			return result
 		execution.advance_operation()
 	execution.set_state(GameAbilityExecution.State.COMPLETED); _cleanup_execution(execution)
-	_emit_event(&"ability_completed", execution.get_execution_context(), {"ability_id": execution.get_definition().ability_id, "execution_id": execution.get_execution_id()})
+	_emit_event(&"ability_completed", execution.get_execution_context(), {&"ability_id": execution.get_definition().ability_id, &"execution_id": execution.get_execution_id()})
 	return GameCommandResult.success_changed(&"ability_completed", execution)
 
 # ====== PUBLIC ========
@@ -229,7 +229,7 @@ func activate(request: GameAbilityActivationRequest) -> GameCommandResult:
 	_executions[_execution_counter] = execution; execution.set_state(GameAbilityExecution.State.VALIDATED); execution.set_state(GameAbilityExecution.State.PREPARED)
 	var commit_result: GameCommandResult = _commit_execution(execution)
 	if not commit_result.is_success(): _executions.erase(_execution_counter); return commit_result
-	_emit_event(&"ability_started", child_context, {"ability_id": grant.get_definition().ability_id, "grant_handle_id": grant.get_handle_id(), "execution_id": execution.get_execution_id()})
+	_emit_event(&"ability_started", child_context, {&"ability_id": grant.get_definition().ability_id, &"grant_handle_id": grant.get_handle_id(), &"execution_id": execution.get_execution_id()})
 	return _run_execution(execution)
 
 ## Cancels one active execution, invokes operation cleanup, refunds configured costs,
@@ -239,9 +239,9 @@ func cancel_execution(execution_id: int, reason: StringName = &"cancelled") -> G
 	if execution == null or execution.is_terminal(): return GameCommandResult.rejected_permanent(&"execution_not_active", "Execution is not active.")
 	var operations: Array[GameAbilityOperation] = execution.get_definition().operations
 	if execution.get_operation_index() < operations.size(): operations[execution.get_operation_index()].cancel(self, execution, reason)
-	for record: Dictionary in execution.get_prepared_costs(): (record.cost as GameAbilityCost).refund(self, execution.get_grant(), execution, record.prepared)
+	for record: Dictionary in execution.get_prepared_costs(): (record[&"cost"] as GameAbilityCost).refund(self, execution.get_grant(), execution, record[&"prepared"])
 	execution.set_failure_reason(reason); execution.set_state(GameAbilityExecution.State.CANCELLED); _cleanup_execution(execution)
-	_emit_event(&"ability_cancelled", execution.get_execution_context(), {"ability_id": execution.get_definition().ability_id, "execution_id": execution_id, "reason": reason})
+	_emit_event(&"ability_cancelled", execution.get_execution_context(), {&"ability_id": execution.get_definition().ability_id, &"execution_id": execution_id, &"reason": reason})
 	return GameCommandResult.new(GameCommandResult.Status.CANCELLED, reason, "Ability execution cancelled.", 0, execution)
 
 ## Advances all cooldown states and removes expired keys after iteration.
