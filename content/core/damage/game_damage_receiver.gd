@@ -63,5 +63,5 @@ func apply_damage(request: GameDamageRequest) -> GameCommandResult:
 	var result: GameCommandResult = _meters.modify_current(target_meter_id, -final_damage, request.get_execution_context(), &"damage_applied")
 	if not result.is_success(): return result
 	if context != null:
-		publish_local_event(GameLocalEvent.new(&"damage_applied", context.get_object_handle(), request.get_execution_context(), {"base_damage": request.get_base_amount(), "mitigated": request.get_base_amount() - final_damage, "final_damage": final_damage, "meter_id": target_meter_id}))
-	return GameCommandResult.success_changed(&"damage_applied", {"final_damage": final_damage, "meter_change": result.get_payload()})
+		publish_local_event(GameLocalEvent.new(&"damage_applied", context.get_object_handle(), request.get_execution_context(), {&"base_damage": request.get_base_amount(), &"mitigated": request.get_base_amount() - final_damage, &"final_damage": final_damage, &"meter_id": target_meter_id}))
+	return GameCommandResult.success_changed(&"damage_applied", {&"final_damage": final_damage, &"meter_change": result.get_payload()})
