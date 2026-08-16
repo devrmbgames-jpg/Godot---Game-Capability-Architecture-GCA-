@@ -72,29 +72,41 @@ func _validate_meter(resource: Resource, attribute_ids: Dictionary) -> Array[Dic
 
 func _validate_effect(resource: Resource, attribute_ids: Dictionary, meter_ids: Dictionary) -> Array[Dictionary]:
 	var issues: Array[Dictionary] = []
-	var duration_policy: int = int(resource.get(&"duration_policy"))
-	var duration: float = float(resource.get(&"duration"))
-	var period: float = float(resource.get(&"period"))
-	if duration_policy == 1 and duration <= 0.0:
-		issues.append(_issue(SEVERITY_ERROR, &"invalid_effect_duration", "Duration effect requires duration greater than zero.", &"duration"))
-	if period < 0.0:
-		issues.append(_issue(SEVERITY_ERROR, &"invalid_effect_period", "Effect period cannot be negative.", &"period"))
-	var attribute_modifiers: Array = resource.get(&"attribute_modifiers") as Array
-	for index: int in attribute_modifiers.size():
-		var modifier_spec: Dictionary = attribute_modifiers[index] as Dictionary
-		var attribute_id: StringName = modifier_spec.get("attribute_id", &"")
-		if attribute_id.is_empty():
-			issues.append(_issue(SEVERITY_ERROR, &"effect_modifier_missing_attribute", "Attribute modifier %d has no target." % index, &"attribute_modifiers"))
-		elif not attribute_ids.has(attribute_id):
-			issues.append(_issue(SEVERITY_ERROR, &"effect_modifier_unknown_attribute", "Attribute modifier references unknown attribute '%s'." % attribute_id, &"attribute_modifiers"))
-	var meter_operations: Array = resource.get(&"meter_operations") as Array
-	for index: int in meter_operations.size():
-		var operation_spec: Dictionary = meter_operations[index] as Dictionary
-		var meter_id: StringName = operation_spec.get("meter_id", &"")
-		if meter_id.is_empty():
-			issues.append(_issue(SEVERITY_ERROR, &"effect_operation_missing_meter", "Meter operation %d has no target." % index, &"meter_operations"))
-		elif not meter_ids.has(meter_id):
-			issues.append(_issue(SEVERITY_ERROR, &"effect_operation_unknown_meter", "Meter operation references unknown meter '%s'." % meter_id, &"meter_operations"))
+	var effect: GameEffectDefinition = resource as GameEffectDefinition
+	if effect == null:
+		issues.append(_issue(SEVERITY_ERROR, &"effect_type_mismatch", "Indexed effect is not a GameEffectDefinition."))
+		return issues
+
+	for message: String in effect.get_validation_errors():
+		issues.append(_issue(SEVERITY_ERROR, &"effect_definition_validation", message))
+
+	for index: int in range(effect.attribute_modifiers.size()):
+		var modifier_spec: GameEffectAttributeModifierSpec = effect.attribute_modifiers[index]
+		if modifier_spec == null or modifier_spec.attribute_id.is_empty():
+			continue
+		if not attribute_ids.has(modifier_spec.attribute_id):
+			issues.append(
+				_issue(
+					SEVERITY_ERROR,
+					&"effect_modifier_unknown_attribute",
+					"Attribute modifier %d references unknown attribute '%s'." % [index, modifier_spec.attribute_id],
+					&"attribute_modifiers"
+				)
+			)
+
+	for index: int in range(effect.meter_operations.size()):
+		var operation_spec: GameEffectMeterOperationSpec = effect.meter_operations[index]
+		if operation_spec == null or operation_spec.meter_id.is_empty():
+			continue
+		if not meter_ids.has(operation_spec.meter_id):
+			issues.append(
+				_issue(
+					SEVERITY_ERROR,
+					&"effect_operation_unknown_meter",
+					"Meter operation %d references unknown meter '%s'." % [index, operation_spec.meter_id],
+					&"meter_operations"
+				)
+			)
 	return issues
 
 func _validate_ability(resource: Resource) -> Array[Dictionary]:
