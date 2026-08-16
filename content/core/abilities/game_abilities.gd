@@ -194,12 +194,12 @@ func grant_ability(definition: GameAbilityDefinition, source_handle: GameObjectH
 	_grant_counter += 1
 	var grant := GameAbilityGrant.new(_grant_counter, definition, get_context().get_object_handle(), source_handle, source_definition_id, level, charges, source_priority, runtime_overrides)
 	_grants[_grant_counter] = grant
-	
-	var ids: Array[int]
+
+	var ids: Array[int] = []
 	ids = _grant_ids_by_ability.get(definition.ability_id, ids)
 	ids.append(_grant_counter)
 	_grant_ids_by_ability[definition.ability_id] = ids
-	
+
 	return GameCommandResult.success_changed(&"ability_granted", grant)
 
 ## Revokes one grant by handle and cancels only its active executions.
@@ -207,7 +207,9 @@ func revoke_grant(handle_id: int, reason: StringName = &"revoked") -> GameComman
 	var grant: GameAbilityGrant = _grants.get(handle_id) as GameAbilityGrant
 	if grant == null: return GameCommandResult.rejected_permanent(&"unknown_grant", "Unknown grant handle.")
 	for execution_id: int in grant.get_active_execution_ids(): cancel_execution(execution_id, reason)
-	var ids: Array[int] = _grant_ids_by_ability.get(grant.get_definition().ability_id, []); ids.erase(handle_id)
+	var ids: Array[int] = []
+	ids = _grant_ids_by_ability.get(grant.get_definition().ability_id, ids)
+	ids.erase(handle_id)
 	if ids.is_empty(): _grant_ids_by_ability.erase(grant.get_definition().ability_id)
 	else: _grant_ids_by_ability[grant.get_definition().ability_id] = ids
 	grant.invalidate(); _grants.erase(handle_id)
