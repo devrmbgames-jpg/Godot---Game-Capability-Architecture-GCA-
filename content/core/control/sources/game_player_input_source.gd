@@ -54,6 +54,22 @@ func _physics_process(_delta: float) -> void:
 		movement_forward_action,
 		movement_back_action
 	)
+	
+	var move_direction: Vector3 = Vector3(input_vector.x, 0.0, input_vector.y)
+	
+	var camera := get_viewport().get_camera_3d()
+	if camera :
+		var camera_forward: Vector3 = -camera.global_basis.z
+		var camera_right: Vector3 = camera.global_basis.x
+		camera_forward.y = 0.0
+		camera_right.y = 0.0
+		camera_forward = camera_forward.normalized()
+		camera_right = camera_right.normalized()
+		
+		move_direction = (
+			camera_right * input_vector.x
+			+ camera_forward * -input_vector.y
+		)
 
 	if owns_channel(GameControlChannels.MOVEMENT):
 		submit_intent(
@@ -61,8 +77,8 @@ func _physics_process(_delta: float) -> void:
 			GameControlChannels.MOVEMENT,
 			context,
 			{
-				&"direction": Vector3(input_vector.x, 0.0, input_vector.y),
-				&"magnitude": minf(input_vector.length(), 1.0),
+				&"direction": move_direction,
+				&"magnitude": minf(move_direction.length(), 1.0),
 			},
 			true
 		)

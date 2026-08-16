@@ -194,7 +194,12 @@ func grant_ability(definition: GameAbilityDefinition, source_handle: GameObjectH
 	_grant_counter += 1
 	var grant := GameAbilityGrant.new(_grant_counter, definition, get_context().get_object_handle(), source_handle, source_definition_id, level, charges, source_priority, runtime_overrides)
 	_grants[_grant_counter] = grant
-	var ids: Array[int] = _grant_ids_by_ability.get(definition.ability_id, []); ids.append(_grant_counter); _grant_ids_by_ability[definition.ability_id] = ids
+	
+	var ids: Array[int]
+	ids = _grant_ids_by_ability.get(definition.ability_id, ids)
+	ids.append(_grant_counter)
+	_grant_ids_by_ability[definition.ability_id] = ids
+	
 	return GameCommandResult.success_changed(&"ability_granted", grant)
 
 ## Revokes one grant by handle and cancels only its active executions.

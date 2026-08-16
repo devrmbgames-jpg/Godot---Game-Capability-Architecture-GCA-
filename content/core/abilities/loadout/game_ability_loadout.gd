@@ -156,7 +156,8 @@ func bind_grant(
 		priority
 	)
 	_bindings[_binding_counter] = binding
-	var ids: Array[int] = _binding_ids_by_slot.get(slot_id, [])
+	var ids: Array[int]
+	ids = _binding_ids_by_slot.get(slot_id, ids)
 	ids.append(_binding_counter)
 	_binding_ids_by_slot[slot_id] = ids
 	_sort_slot_bindings(slot_id)

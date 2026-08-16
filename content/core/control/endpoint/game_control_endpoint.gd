@@ -123,7 +123,7 @@ func _route_ability(intent: GameControlIntent) -> GameCommandResult:
 		get_owner_handle()
 	)
 	request.set_grant_handle_id(grant_handle_id)
-	request.set_targets(payload.get(&"targets", []))
+	request.set_targets(payload.get(&"targets",  Array([], TYPE_OBJECT, "RefCounted", GameObjectHandle)))
 	request.set_target_point(payload.get(&"target_point", Vector3.ZERO))
 	request.set_target_direction(payload.get(&"target_direction", Vector3.ZERO))
 	request.set_activation_payload(payload.get(&"activation_payload", {}))
