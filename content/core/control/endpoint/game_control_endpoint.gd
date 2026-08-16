@@ -90,10 +90,10 @@ func _route_movement(intent: GameControlIntent) -> GameCommandResult:
 	elif intent.get_intent_type() == &"movement.move_to":
 		request_type = GameMovementRequest.Type.MOVE_TO_POINT
 	var request := GameMovementRequest.new(request_type, intent.get_execution_context())
-	request.set_direction(payload.get("direction", Vector3.ZERO))
-	request.set_magnitude(float(payload.get("magnitude", 0.0)))
-	request.set_target_point(payload.get("target_point", Vector3.ZERO))
-	request.set_tolerance(float(payload.get("tolerance", 0.1)))
+	request.set_direction(payload.get(&"direction", Vector3.ZERO))
+	request.set_magnitude(float(payload.get(&"magnitude", 0.0)))
+	request.set_target_point(payload.get(&"target_point", Vector3.ZERO))
+	request.set_tolerance(float(payload.get(&"tolerance", 0.1)))
 	request.set_payload(payload)
 	return _motor.apply_movement_request(request)
 
@@ -102,9 +102,9 @@ func _route_ability(intent: GameControlIntent) -> GameCommandResult:
 		return GameCommandResult.missing_capability(GameCapabilityIds.ABILITIES_ACTIVATE)
 
 	var payload: Dictionary = intent.get_payload()
-	var ability_id: StringName = payload.get("ability_id", &"")
-	var grant_handle_id: int = int(payload.get("grant_handle_id", 0))
-	var slot_id: StringName = payload.get("slot_id", &"")
+	var ability_id: StringName = payload.get(&"ability_id", &"")
+	var grant_handle_id: int = int(payload.get(&"grant_handle_id", 0))
+	var slot_id: StringName = payload.get(&"slot_id", &"")
 
 	if grant_handle_id <= 0 and not slot_id.is_empty():
 		if _ability_loadout == null:
@@ -123,10 +123,10 @@ func _route_ability(intent: GameControlIntent) -> GameCommandResult:
 		get_owner_handle()
 	)
 	request.set_grant_handle_id(grant_handle_id)
-	request.set_targets(payload.get("targets", []))
-	request.set_target_point(payload.get("target_point", Vector3.ZERO))
-	request.set_target_direction(payload.get("target_direction", Vector3.ZERO))
-	request.set_activation_payload(payload.get("activation_payload", {}))
+	request.set_targets(payload.get(&"targets", []))
+	request.set_target_point(payload.get(&"target_point", Vector3.ZERO))
+	request.set_target_direction(payload.get(&"target_direction", Vector3.ZERO))
+	request.set_activation_payload(payload.get(&"activation_payload", {}))
 	return _abilities.activate(request)
 
 func _route_interaction(intent: GameControlIntent) -> GameCommandResult:
