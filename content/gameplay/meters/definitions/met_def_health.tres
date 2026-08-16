@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="GameMeterDefinition" format=3 uid="uid://vwq11s351r7q"]
+
+[ext_resource type="Script" uid="uid://n387b56ndfr" path="res://content/core/meters/definitions/game_meter_definition.gd" id="1_c36wn"]
+
+[resource]
+script = ExtResource("1_c36wn")
+meter_id = &"base.meter.health"
+maximum_policy = 1
+constant_maximum = 0.0
+maximum_attribute_id = &"base.attribute.max_health"
+metadata/_custom_type_script = "uid://n387b56ndfr"

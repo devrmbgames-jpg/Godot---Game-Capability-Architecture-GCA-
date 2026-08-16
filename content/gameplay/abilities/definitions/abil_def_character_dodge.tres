@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="GameAbilityDefinition" format=3 uid="uid://daka3fponi133"]
+
+[ext_resource type="Script" uid="uid://c6yhqufmwgqr" path="res://content/core/abilities/costs/game_ability_cost.gd" id="1_hp2n4"]
+[ext_resource type="Script" uid="uid://buj6fbbs1gurm" path="res://content/core/abilities/operations/game_ability_operation.gd" id="2_mnrwp"]
+[ext_resource type="Script" uid="uid://baxipdmcmx5s4" path="res://content/gameplay/abilities/operations/dodge_operation_base.gd" id="3_gb11a"]
+[ext_resource type="Script" uid="uid://cw6lntlsunu2h" path="res://content/core/abilities/requirements/game_ability_requirement.gd" id="3_roiod"]
+[ext_resource type="Script" uid="uid://dbaqs44bd1sfo" path="res://content/core/abilities/definitions/game_ability_definition.gd" id="4_q82ka"]
+
+[sub_resource type="Resource" id="Resource_bghjr"]
+script = ExtResource("3_gb11a")
+metadata/_custom_type_script = "uid://baxipdmcmx5s4"
+
+[resource]
+script = ExtResource("4_q82ka")
+ability_id = &"base.ability.character.dodge"
+display_name = "Character Dodge"
+operations = Array[ExtResource("2_mnrwp")]([SubResource("Resource_bghjr")])
+metadata/_custom_type_script = "uid://dbaqs44bd1sfo"

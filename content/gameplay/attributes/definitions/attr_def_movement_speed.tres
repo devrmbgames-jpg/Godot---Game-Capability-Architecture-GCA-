@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="GameAttributeDefinition" format=3 uid="uid://dctstdgfmgogt"]
+
+[ext_resource type="Script" uid="uid://dx0nb3oqulxll" path="res://content/core/attributes/definitions/game_attribute_definition.gd" id="1_kle00"]
+
+[resource]
+script = ExtResource("1_kle00")
+attribute_id = &"base.attribute.movement_speed"
+display_name = "Movement Speed"
+default_base = 5.0
+maximum = 500.0
+metadata/_custom_type_script = "uid://dx0nb3oqulxll"

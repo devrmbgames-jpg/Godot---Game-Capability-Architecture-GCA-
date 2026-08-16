@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="GameAbilityDefinition" format=3 uid="uid://fjdl602s6583"]
+
+[ext_resource type="Script" uid="uid://c6yhqufmwgqr" path="res://content/core/abilities/costs/game_ability_cost.gd" id="1_f38gr"]
+[ext_resource type="Script" uid="uid://buj6fbbs1gurm" path="res://content/core/abilities/operations/game_ability_operation.gd" id="2_m3f8d"]
+[ext_resource type="Script" uid="uid://cw6lntlsunu2h" path="res://content/core/abilities/requirements/game_ability_requirement.gd" id="3_qyhte"]
+[ext_resource type="Script" uid="uid://dbaqs44bd1sfo" path="res://content/core/abilities/definitions/game_ability_definition.gd" id="4_bdhrd"]
+
+[resource]
+script = ExtResource("4_bdhrd")
+ability_id = &"base.ability.place.mine"
+display_name = "Place Mine"
+metadata/_custom_type_script = "uid://dbaqs44bd1sfo"

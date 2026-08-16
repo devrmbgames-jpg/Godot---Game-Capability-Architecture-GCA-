@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="GameEffectDefinition" format=3 uid="uid://fma6x0owhcb7"]
+
+[ext_resource type="Script" uid="uid://ha47vlndho7p" path="res://content/core/effects/definitions/game_effect_definition.gd" id="1_5cb3c"]
+
+[resource]
+script = ExtResource("1_5cb3c")
+effect_id = &"base.effect.burrning"
+duration_policy = 1
+duration = 4.0
+period = 1.0
+stacking_policy = 1
+granted_tags = Array[StringName]([&"status.burning"])
+meter_operations = Array[Dictionary]([{
+&"delta": -5.0,
+&"meter_id": &"base.meter.health"
+}])
+metadata/_custom_type_script = "uid://ha47vlndho7p"

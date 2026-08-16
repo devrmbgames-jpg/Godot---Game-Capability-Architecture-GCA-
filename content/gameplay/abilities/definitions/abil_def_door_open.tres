@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="GameAbilityDefinition" format=3 uid="uid://udxkke33obaj"]
+
+[ext_resource type="Script" uid="uid://c6yhqufmwgqr" path="res://content/core/abilities/costs/game_ability_cost.gd" id="1_fwp7q"]
+[ext_resource type="Script" uid="uid://buj6fbbs1gurm" path="res://content/core/abilities/operations/game_ability_operation.gd" id="2_kvmuh"]
+[ext_resource type="Script" uid="uid://cw6lntlsunu2h" path="res://content/core/abilities/requirements/game_ability_requirement.gd" id="3_miox6"]
+[ext_resource type="Script" uid="uid://dbaqs44bd1sfo" path="res://content/core/abilities/definitions/game_ability_definition.gd" id="4_ku0sm"]
+
+[resource]
+script = ExtResource("4_ku0sm")
+ability_id = &"base.ability.door.open"
+display_name = "Door Open"
+blocked_owner_tags = Array[StringName]([&"state.open"])
+metadata/_custom_type_script = "uid://dbaqs44bd1sfo"

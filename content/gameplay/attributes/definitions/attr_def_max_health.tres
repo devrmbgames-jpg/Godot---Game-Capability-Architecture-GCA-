@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="GameAttributeDefinition" format=3 uid="uid://btvqo5de0fgme"]
+
+[ext_resource type="Script" uid="uid://dx0nb3oqulxll" path="res://content/core/attributes/definitions/game_attribute_definition.gd" id="1_yrsew"]
+
+[resource]
+script = ExtResource("1_yrsew")
+attribute_id = &"base.attribute.max_health"
+display_name = "Max Health"
+default_base = 100.0
+maximum = 100.0
+metadata/_custom_type_script = "uid://dx0nb3oqulxll"

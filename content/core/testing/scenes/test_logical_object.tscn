@@ -1,27 +1,43 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene format=3 uid="uid://bsmts45w2aiv8"]
 
-[ext_resource type="Script" path="res://content/core/object/kernel/game_object_kernel.gd" id="1_kernel"]
-[ext_resource type="Script" path="res://content/core/object/identity/game_object_identity.gd" id="2_identity"]
-[ext_resource type="Script" path="res://content/core/tags/game_tag_container.gd" id="3_tags"]
-[ext_resource type="Script" path="res://content/core/testing/features/game_test_counter_feature.gd" id="4_counter"]
-[ext_resource type="Script" path="res://content/core/testing/features/game_test_threshold_feature.gd" id="5_threshold"]
+[ext_resource type="Script" uid="uid://drktecnygf1s6" path="res://content/core/object/kernel/game_object_kernel.gd" id="1_kernel"]
+[ext_resource type="Script" uid="uid://dc07aejmptsxw" path="res://content/core/object/identity/game_object_identity.gd" id="2_identity"]
+[ext_resource type="Script" uid="uid://cj1dn4vkggo6v" path="res://content/core/capabilities/contracts/game_capability_spec.gd" id="3_byscw"]
+[ext_resource type="Script" uid="uid://bg0cgb3piiol5" path="res://content/core/tags/game_tag_container.gd" id="3_tags"]
+[ext_resource type="Script" uid="uid://clb1pwixqp1kl" path="res://content/core/testing/features/game_test_counter_feature.gd" id="4_counter"]
+[ext_resource type="Script" uid="uid://dncqyxn5ha78k" path="res://content/core/testing/features/game_test_threshold_feature.gd" id="5_threshold"]
 
-[node name="LogicalObject" type="Node"]
+[sub_resource type="Resource" id="Resource_ikl67"]
+script = ExtResource("3_byscw")
+capability_id = &"object.identity"
 
-[node name="GameObjectKernel" type="Node" parent="."]
+[sub_resource type="Resource" id="Resource_0tp0q"]
+script = ExtResource("3_byscw")
+capability_id = &"tags.query"
+
+[sub_resource type="Resource" id="Resource_2astc"]
+script = ExtResource("3_byscw")
+capability_id = &"tags.modify"
+
+[node name="LogicalObject" type="Node" unique_id=1783572979]
+
+[node name="GameObjectKernel" type="Node" parent="." unique_id=1840626256]
 script = ExtResource("1_kernel")
 
-[node name="GameObjectIdentity" type="Node" parent="GameObjectKernel"]
+[node name="GameObjectIdentity" type="Node" parent="GameObjectKernel" unique_id=1419830414]
 script = ExtResource("2_identity")
 stable_id = &"demo.logical_object"
 definition_id = &"scene.test_logical_object"
+feature_id = &"object.identity"
+provided_capabilities = Array[ExtResource("3_byscw")]([SubResource("Resource_ikl67")])
 
-[node name="GameTags" type="Node" parent="GameObjectKernel"]
+[node name="GameTags" type="Node" parent="GameObjectKernel" unique_id=41233789]
 script = ExtResource("3_tags")
+feature_id = &"object.tags"
+provided_capabilities = Array[ExtResource("3_byscw")]([SubResource("Resource_0tp0q"), SubResource("Resource_2astc")])
 
-[node name="GameTestCounterFeature" type="Node" parent="GameObjectKernel"]
+[node name="GameTestCounterFeature" type="Node" parent="GameObjectKernel" unique_id=170406350]
 script = ExtResource("4_counter")
 
-[node name="GameTestThresholdFeature" type="Node" parent="GameObjectKernel"]
+[node name="GameTestThresholdFeature" type="Node" parent="GameObjectKernel" unique_id=563234755]
 script = ExtResource("5_threshold")
-threshold = 3
