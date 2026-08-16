@@ -59,25 +59,38 @@ func _requirements_pass(definition: GameEffectDefinition) -> bool:
 			return false
 	return true
 
+func _rollback_attribute_modifiers(modifiers: Array[GameAttributeModifier]) -> void:
+	for modifier: GameAttributeModifier in modifiers:
+		if modifier != null:
+			_attributes.remove_modifier(modifier.get_handle_id())
+
 func _apply_attribute_modifiers(active_effect: GameActiveEffect) -> GameCommandResult:
 	var definition: GameEffectDefinition = active_effect.get_definition()
 	if definition.attribute_modifiers.is_empty():
 		return GameCommandResult.success_unchanged(&"no_attribute_modifiers")
 	if _attributes == null:
 		return GameCommandResult.missing_capability(GameCapabilityIds.ATTRIBUTES_MODIFY)
+	var applied_modifiers: Array[GameAttributeModifier] = []
 	_attributes.begin_transaction()
-	for modifier_spec: Dictionary in definition.attribute_modifiers:
+	for modifier_spec: GameEffectAttributeModifierSpec in definition.attribute_modifiers:
+		if modifier_spec == null or not modifier_spec.is_valid():
+			_rollback_attribute_modifiers(applied_modifiers)
+			_attributes.end_transaction()
+			return GameCommandResult.configuration_error(&"invalid_effect_modifier", "Effect attribute modifier spec is invalid.")
 		var modifier: GameAttributeModifier = _attributes.add_modifier(
-			modifier_spec.get(&"attribute_id", &""),
-			modifier_spec.get(&"operation", GameAttributeModifier.Operation.ADD),
-			float(modifier_spec.get(&"magnitude", 0.0)) * active_effect.get_stacks(),
+			modifier_spec.attribute_id,
+			modifier_spec.operation,
+			modifier_spec.magnitude * active_effect.get_stacks(),
 			definition.effect_id,
 			active_effect.get_handle_id(),
-			int(modifier_spec.get(&"priority", 0))
+			modifier_spec.priority
 		)
 		if modifier == null:
+			_rollback_attribute_modifiers(applied_modifiers)
 			_attributes.end_transaction()
 			return GameCommandResult.configuration_error(&"invalid_effect_modifier", "Effect modifier target is invalid.")
+		applied_modifiers.append(modifier)
+	for modifier: GameAttributeModifier in applied_modifiers:
 		active_effect.add_modifier_handle(modifier.get_handle_id())
 	_attributes.end_transaction()
 	return GameCommandResult.success_changed(&"effect_modifiers_applied")
@@ -88,10 +101,12 @@ func _apply_meter_operations(active_effect: GameActiveEffect, execution_context:
 		return GameCommandResult.success_unchanged(&"no_meter_operations")
 	if _meters == null:
 		return GameCommandResult.missing_capability(GameCapabilityIds.METERS_MODIFY)
-	for operation: Dictionary in definition.meter_operations:
+	for operation: GameEffectMeterOperationSpec in definition.meter_operations:
+		if operation == null or not operation.is_valid():
+			return GameCommandResult.configuration_error(&"invalid_effect_meter_operation", "Effect meter operation spec is invalid.")
 		var result: GameCommandResult = _meters.modify_current(
-			operation.get(&"meter_id", &""),
-			float(operation.get(&"delta", 0.0)) * active_effect.get_stacks(),
+			operation.meter_id,
+			operation.delta * active_effect.get_stacks(),
 			execution_context,
 			&"effect_meter_operation"
 		)

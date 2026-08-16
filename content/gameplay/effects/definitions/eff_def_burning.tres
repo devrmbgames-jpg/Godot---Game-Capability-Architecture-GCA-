@@ -1,17 +1,23 @@
-[gd_resource type="Resource" script_class="GameEffectDefinition" format=3 uid="uid://fma6x0owhcb7"]
+[gd_resource type="Resource" script_class="GameEffectDefinition" load_steps=4 format=3 uid="uid://bpl7uggq3ie1t"]
 
-[ext_resource type="Script" uid="uid://ha47vlndho7p" path="res://content/core/effects/definitions/game_effect_definition.gd" id="1_5cb3c"]
+[ext_resource type="Script" uid="uid://c5v0fr1a2dn71" path="res://content/core/effects/definitions/game_effect_definition.gd" id="1_5cb3c"]
+[ext_resource type="Script" path="res://content/core/effects/definitions/game_effect_meter_operation_spec.gd" id="2_meter_spec"]
+
+[sub_resource type="Resource" id="Resource_burning_meter_operation"]
+script = ExtResource("2_meter_spec")
+meter_id = &"base.meter.health"
+delta = -5.0
 
 [resource]
 script = ExtResource("1_5cb3c")
+schema_version = 2
 effect_id = &"base.effect.burning"
 duration_policy = 1
-duration = 4.0
+duration = 5.0
 period = 1.0
-stacking_policy = 1
+execute_period_on_apply = true
+stacking_policy = 2
+stack_limit = 3
 granted_tags = Array[StringName]([&"status.burning"])
-meter_operations = Array[Dictionary]([{
-&"delta": -5.0,
-&"meter_id": &"base.meter.health"
-}])
-metadata/_custom_type_script = "uid://ha47vlndho7p"
+meter_operations = Array[ExtResource("2_meter_spec")]([SubResource("Resource_burning_meter_operation")])
+metadata/_custom_type_script = "uid://c5v0fr1a2dn71"
