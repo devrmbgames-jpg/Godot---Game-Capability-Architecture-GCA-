@@ -1,0 +1,45 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://content/gameplay/props/mines/game_mine_base.gd" id="1_mine"]
+[ext_resource type="Script" uid="uid://drktecnygf1s6" path="res://content/core/object/kernel/game_object_kernel.gd" id="2_kernel"]
+[ext_resource type="Script" uid="uid://dc07aejmptsxw" path="res://content/core/object/identity/game_object_identity.gd" id="3_identity"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_mine"]
+top_radius = 0.4
+bottom_radius = 0.4
+height = 0.15
+radial_segments = 12
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_mine"]
+albedo_color = Color(0.75, 0.12, 0.08, 1)
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_mine"]
+radius = 0.5
+height = 0.3
+
+[node name="Mine" type="Area3D"]
+collision_layer = 0
+collision_mask = 1
+script = ExtResource("1_mine")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.075, 0)
+mesh = SubResource("CylinderMesh_mine")
+surface_material_override/0 = SubResource("StandardMaterial3D_mine")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+shape = SubResource("CylinderShape3D_mine")
+
+[node name="GameObjectKernel" type="Node" parent="." node_paths=PackedStringArray("object_root_override")]
+script = ExtResource("2_kernel")
+object_root_override = NodePath("..")
+auto_initialize = false
+metadata/_custom_type_script = "uid://drktecnygf1s6"
+
+[node name="GameObjectIdentity" type="Node" parent="GameObjectKernel"]
+script = ExtResource("3_identity")
+definition_id = &"object.prop.mine"
+allow_runtime_generated_id = true
+metadata/_custom_type_script = "uid://dc07aejmptsxw"
