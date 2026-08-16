@@ -117,9 +117,9 @@ func _build_ability_request(
 	if request.get_source_handle() != null:
 		ability_request.set_targets([request.get_source_handle()])
 	ability_request.set_activation_payload({
-		"interaction_intent_id": reaction.intent_id,
-		"interaction_offer_id": reaction.offer_id,
-		"interaction_payload": request.get_payload(),
+		&"interaction_intent_id": reaction.intent_id,
+		&"interaction_offer_id": reaction.offer_id,
+		&"interaction_payload": request.get_payload(),
 	})
 	return ability_request
 
